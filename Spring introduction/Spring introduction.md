@@ -81,5 +81,79 @@ public class HelloController {
     + 객체: JSON 방식으로 데이터를 생성 
   + HttpMessageConverter (viewResolver 대신 동작)
     + 단순 문자: StringConverter
-    + 객체: JsonConverter 
+    + 객체: JsonConverter
+    
+## 웹 애플리케이션 계층 구조
++ Controller: 웹 MVC의 컨트롤러 역할
++ Service: 핵심 비즈니스 로직 구현
++ Repository: DB에 접근, 도메인 객체를 DB에 저장하고 관리
++ Domain: 비즈니스 도메인 객체
+
+#### Domain
++ DB에 저장되고 관리됨
+```java
+public class Member {
+    private Long id;
+    private String name;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+```
+#### Repository
++ 도메인 객체를 DB에 저장하고 관리
+```java
+public interface MemberRepository {
+    Member save(Member member);
+    
+    // Optional<T>: 'T'타입의 객체를 포장해 주는 래퍼 클래스(Wrapper class)로 null값으로 인해 발생하는 예외 처리 가능
+    Optional<Member> findById(Long id);    
+    Optional<Member> findByName(String name);
+    List<Member> findAll();
+}
+```
+
+# Test
+### 1) 회원 레포지토리 테스트 케이스
+```java
+public class MemoryMemberRepositoryTest {
+
+    MemoryMemberRepository repository = new MemoryMemberRepository();
+    
+    // 하나의 test 실행 후마다 저장소를 비우는 메소드
+    @AfterEach
+    public void afterEach(){       // 하나의 test가 실행되고 끝날 때마다 저장소를 비우는 함수 (실행 순서와 관계없게 만들기 위해)
+        repository.clearStore();
+    }
+
+    @Test
+    public void save() {
+        Member member = new Member();
+        member.setName("spring");
+
+        repository.save(member);
+
+        Member result = repository.findById(member.getId()).get();
+        Assertions.assertThat(member).isEqualTo(result);
+
+    }
+}
+```
++ <mark>@AfterEach</mark>: 각 test 실행 후마다 저장소를 비우는 메소드   
+한 번에 여러 테스트를 실행하면 직전 테스트 결과가 남을 수 있어서 실행 순서에 따라 오류가 발생할 수 있어, 각 테스트가 종료할 때마다 메모리 DB에 저장된 데이터를 삭제하도록 함
++ 각 Test는 의존적이지 않은, 독립적인 실행이 이루어져야 한다.
+
   
