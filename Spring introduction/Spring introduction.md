@@ -8,7 +8,7 @@
   + 파일을 그대로 전달하는 방식
   + 관련 Controller 없음 
 ### MVC와 템플릿 엔진     
-  + // 템플릿 엔진을 model view controller 방식으로 쪼개서 view를 렌더링해서 렌더링이 된 html을 클라이언트에게 전달
+  + 템플릿 엔진을 model view controller 방식으로 쪼개서 view를 렌더링하여 렌더링이 된 html을 클라이언트에게 전달
   + view를 찾아서 템플릿 엔진을 통해 렌더링하여 html을 웹브라우저에 넘겨주는 방식  
 #### Controller
   ```java
@@ -22,7 +22,7 @@ public class HelloController {
     }
 }
   ```
-  + @RequestParam: 쿼리스트링으로 파라미터를 URL로 전송하고 controller에서 파라미터를 받을 때 사용
+  + `@RequestParam`: 쿼리스트링으로 파라미터를 URL로 전송하고 controller에서 파라미터를 받을 때 사용
 
 #### View
   ```html
@@ -41,7 +41,7 @@ public class HelloController {
     
 ### API
   JSON 형태({key:value})로 데이터를 그대로 전달하는 방식 (view가 없음)
-  #### @ResponseBody 문자 반환
+  #### `@ResponseBody` 문자 반환
   ```java
   @Controller
 public class HelloController { 
@@ -52,8 +52,8 @@ public class HelloController {
     }
 }
   ```
-  + @ResponseBody: ViewResolver를 사용하지 않고 http body에 문자 내용을 직접 전달   
-  #### @ResponseBody 객체 반환
+  + `@ResponseBody`: ViewResolver를 사용하지 않고 http body에 문자 내용을 직접 전달   
+  #### `@ResponseBody` 객체 반환
   ```java
    @Controller
 public class HelloController { 
@@ -76,10 +76,10 @@ public class HelloController {
     }
 }
 ```
-  + helloController 
+  + `helloController`
     + 단순 문자: 그대로 데이터를 넘김    
     + 객체: JSON 방식으로 데이터를 생성 
-  + HttpMessageConverter (viewResolver 대신 동작)
+  + `HttpMessageConverter` (viewResolver 대신 동작)
     + 단순 문자: StringConverter
     + 객체: JsonConverter
 ----------------------------------------------
@@ -153,7 +153,7 @@ public class MemoryMemberRepositoryTest {
     }
 }
 ```
-+ <mark>@AfterEach</mark>: 각 test 실행 후마다 저장소를 비우는 메소드   
++ `@AfterEach`: 각 test 실행 후마다 저장소를 비우는 메소드   
 한 번에 여러 테스트를 실행하면 직전 테스트 결과가 남을 수 있어서 실행 순서에 따라 오류가 발생할 수 있어, 각 테스트가 종료할 때마다 메모리 DB에 저장된 데이터를 삭제하도록 함
 + 각 Test는 의존적이지 않은, 독립적인 실행이 이루어져야 한다.
 
@@ -172,8 +172,10 @@ class MemberServiceTest {
     }
 }
 ```
-+ <mark>@BeforeEach</mark>: 각 test 실행 전에 수행하는 메소드   
-  직접 new를 하지 않고 외부에서 memberRepository를 Service에 넣어줌 (~~MemberService memberService = new MemberService(memberRepository);~~)
++ `@BeforeEach`: 각 test 실행 전에 수행하는 메소드   
+  직접 new를 하지 않고 외부에서 memberRepository를 Service에 넣어줌   
+  ~~MemberService memberService = new MemberService(memberRepository)~~
+  + 직접 new를 했다면, MemberService에서 사용하는 MemoryMemberRepository()랑 MemberServiceTest에서 사용하는 MemoryMemberRepository()가 서로 다른 인스턴스가 된다.
   
 ```java
 @AfterEach
@@ -238,25 +240,118 @@ public class MemberController {
 + DI(의존성 종속): controller를 통해 외부요청을 받고 service에서 비즈니스 로직을 만들고 repository에서 데이터를 저장하는 것 => 정형화되어있는 패턴
 + 스프링 빈 등록 이미지
   + controller -> memberService -> memberRepository
-+ @Autowired
-  + 스프링 DI(의존성 종속)에서 사용되는 어노테이션으로 해당 변수 및 메서드에 스프링 빈을 자동으로 매핑 
-  + controller와 service를 연결시켜주기 위해서 연관 객체를 스프링 컨테이너에서 찾아서 넣어줌 (의존관계 주입) 
-    + 생성자 주입: 생성자에 의존송 주입을 받고자 하는 field를 나열
++ `@Autowired`: 스프링이 연관된 객체를 스프링 컨테이너에서 찾아서 넣어줌 (의존관계 주입) 
+
+  > DI의 세가지 방법
+    + 생성자 주입: 생성자에 의존성 주입을 받고자 하는 field를 나열. 제일 권장하는 방법
+      ```java
+      @Controller  // 생성자를 통해서 memberService가 MemberController에 주입
+      public class MemberController {
+          private final MemberService memberService;
+    
+          @Autowired
+          public MemberController(MemberService memberService) {
+              this.memberService = memberService;
+          }
+      }
+      ```
+        + MemberController가 생성될 때, 스프링 빈에 등록되어 있는 Memberservice 객체를 가져다 넣어줌
+        + MemberService를 스프링이 생성할 때 스프링 컨테이너에 등록하면서 생성자 호출
+        + 스프링컨테이너에는 MemoryMemberRepository를 service에 주입   
+           
     + field 주입: member field에 @Autowired 선언하여 주입받는 방법
+      ```java
+      @Controller 
+      public class MemberController {
+          @Autowired private MemberService memberService;
+      }
+      ```
     + setter 주입: setter 메소드에 @Autowired 선언하여 주입받는 방법
-    + //MemberController가 생성될 때, 스프링 빈에 등록되어 있는 Memberservice 객체를 가져다 넣어줌
-    + //MemberService를 스프링이 생성할 때 스프링 컨테이너에 등록하면서 생성자 호출
-    + //스프링컨테이너에는 MemoryMemberRepository를 service에 주입 
-+ @Component: 개발자가 직접 작성한 Class 를 Bean 으로 만드는 것
-  + @Service, @Controller, @Repository는 스프링 빈으로 자동 등록됨
+      ```java
+      @Controller 
+      public class MemberController {
+          private MemberService memberService;
+    
+          @Autowired
+          public void setMemberService(MemberService memberService) {
+              this.memberService = memberService;
+          }
+      }
+      ```      
++ `@Component`: 개발자가 직접 작성한 Class 를 Bean 으로 만드는 것
+  + `@Service`, `@Controller`, `@Repository`는 스프링 빈으로 자동 등록됨
+  
+## 자바 코드를 통한 스프링 빈 등록
+```java
+@Configuration // 스프링 빈에 등록하라는 뜻으로 인식
+public class SpringConfig {
+    
+    @Bean // memberService를 스프링 빈에 등록함
+    public MemberService memberService() {
+        return new MemberService(memberRepository()); // 스프링 빈에 등록된 memberRepository를 넣어줌
+    }
+    @Bean
+    public MemberRepository memberRepository() {  // memberRepository를 스프링 빈에 등록함
+        return new MemoryMemberRepository();
+    }
+}
+```
++ `@Bean`: 객체를 스프링 빈에 등록함
++ 변경이 필요할 때 Config 파일 하나만 변경하고, 나머지 코드는 건드리지 않아도 되는 장점이 있다
+---------------------------------------------
+# 웹 MVC 개발
+> MemberController.java
+```java
+@GetMapping("/members/new")  // @GetMapping: 데이터를 조회할 때
+public String createForm(){
+    return "members/createMemberForm";
+}
+
+@PostMapping("/members/new")  // @PostMapping: 데이터를 폼에 넣어서 전달, 등록할 때
+public String create(MemberForm form){
+    Member member = new Member();
+    member.setName(form.getName());
+
+    memberService.join(member);
+
+    return "redirect:/";
+}
+```
++ `@GetMapping()`: 데이터 조회할 때 사용
++ `@PostMapping()`: 데이터 전달, 등록할 때 사용
 ---------------------------------------------
 # 스프링 DB 접근 기술
 ## 순수 JDBC
-JdbcMemberRepository.java 추가
+> sql/ddl.sql (테이블 관리 위함)
+```sql
+drop table if exists member CASCADE;
+create table member
+(
+    id bigint generated by default as identity,
+    name varchar(255),
+    primary key (id)
+)
+```
+> build.gradle 파일에 jdbc, h2 데이터베이스 관련 라이브러리 추가
+```
+implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+runtimeOnly 'com.h2database:h2'
+```
+> resources/application.properties (스프링 부트 데이터베이스 연결 설정 추가)
+```
+spring.datasource.url=jdbc:h2:tcp://localhost/~/test
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+```
+> JdbcMemberRepository.java 중 일부
 ```java
-public class JdbcMemberRepository implements MemberRepository {
+// 인터페이스 MenberRepository 구현
+public class JdbcMemberRepository implements MemberRepository{
 
+    // 데이터 소스 필요
     private final DataSource dataSource;
+
+    // 스프링을 통해서 데이터 소스 주입받기
     public JdbcMemberRepository(DataSource dataSource) {
         this.dataSource = dataSource;
     }
@@ -264,18 +359,18 @@ public class JdbcMemberRepository implements MemberRepository {
     @Override
     public Member save(Member member) {
         String sql = "insert into member(name) values(?)";
+
         Connection conn = null;
         PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        
+        ResultSet rs = null;     // 결과를 받는 것
         try {
             conn = getConnection();
-            pstmt = conn.prepareStatement(sql,
-                    Statement.RETURN_GENERATED_KEYS);
-            pstmt.setString(1, member.getName());
+            pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            pstmt.setString(1, member.getName());   // ?와 1이 매칭
+
             pstmt.executeUpdate();
             rs = pstmt.getGeneratedKeys();
-            
+
             if (rs.next()) {
                 member.setId(rs.getLong(1));
             } else {
@@ -285,11 +380,11 @@ public class JdbcMemberRepository implements MemberRepository {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         } finally {
-            close(conn, pstmt, rs); }
+            close(conn, pstmt, rs);
+        }
     }
-}
 ```
-springConfig 수정
+> springConfig 수정 (스프링 설정 변경)
 ```java
 @Configuration
 public class springConfig {
@@ -314,11 +409,39 @@ public class springConfig {
 }
 ```
 + 개방-폐쇄 원칙(OCP) 준수
-  +확장에는 열려있고, 수정, 변경에는 닫혀있다.
+  + 확장에는 열려있고, 수정, 변경에는 닫혀있다.
 + 스프링의 DI을 사용하여 기존 코드를 전혀 손대지 않고, 설정만으로 구현 클래스를 변경
+  + 기존에는 스프링 빈으로 등록되어있던 <memory> memberRepository를 빼고 <jdbc> memberRepository를 등록. 구현체만 이걸로 바뀌어서 돌아감.  
 
+> 스프링 통합 테스트
+```
+@SpringBootTest
+@Transactional   // test 실행 전에 먼저 실행하여 DB에 데이터를 다 넣은 뒤 test가 끝나면 롤백을 해주어 DB에 넣었던 데이터가 다 지워짐
+public class MemberServiceIntegrationTest {
+    @Autowired
+    MemberService memberService;
+    @Autowired
+    MemberRepository memberRepository;
+
+    @Test
+    public void 회원가입() throws Exception {
+        //given
+        Member member = new Member();
+        member.setName("spring");
+        //when
+        Long saveId = memberService.join(member);
+        //then
+        Member findMember = memberRepository.findById(saveId).get();
+        assertEquals(member.getName(), findMember.getName());
+    }
+}
+```
++ `@SpringBootTest` : 스프링 컨테이너와 테스트를 함께 실행한다.
++ `@Transactional` : 테스트 시작 전에 트랜잭션을 시작하고, 테스트 완료 후에 항상 롤백한다. 이렇게 하면 DB에 데이터가 남지 않으므로 다음 테스트에 영향을 주지 않는다.
+  
 ## JDBC Template
-JdbcTemplateMemberRepository.java
+
+> JdbcTemplateMemberRepository.java 중 일부
 ```java
 public class JdbcTemplateMemberRepository implements MemberRepository {
     private final JdbcTemplate jdbcTemplate;
@@ -348,13 +471,14 @@ public class JdbcTemplateMemberRepository implements MemberRepository {
     }
 ```
 + JDBC API의 반복코드 제거
++ SQL은 직접 작성해야 함
 + 생성자 하나일 때, @Autowired 생략 가능
 
 ## JPA
 + 반복 코드 제거, 기본적인 SQL도 JPA가 직접 만들어서 실행
 + SQL과 데이터 중심의 설계에서 객체 중심의 설계로 패러다임을 전환
 
-JpaMemberRepository.java 
+> JpaMemberRepository.java 
 ```java
 public class JpaMemberRepository implements MemberRepository {
 
