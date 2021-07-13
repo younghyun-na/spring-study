@@ -342,7 +342,7 @@ class ApplicationContextBasicFindTest {
 }
 ```
 + 기본적인 조회 방법: `getBean(빈이름, 타입)`, `getBean(타입)`   
-+ 
+
 #### 동일한 타입이 둘 이상
 ```java
 class ApplicationContextSameBeanFindTesst {
@@ -452,6 +452,6 @@ public class ApplicationContextExtendsFindTest {
 
 ## 스프링 빈 설정 메타 정보 - BeanDefinition
 + BeanDefinition: 빈 설정 메타정보
-  + @Bean , <bean> 당 각각 하나씩 메타 정보가 생성
+  +`@Bean`당 각각 하나씩 메타 정보가 생성
   + 스프링 컨테이너는 이 메타정보를 기반으로 스프링 빈을 생성
 + xml, java 등 다양한 빈 설정 형식을 가능하게 지원
