@@ -249,19 +249,23 @@ public class MemberApp {
 ApplicationContext applicationContext = new AnnotationConfigApplicationContext(AppConfig.class);
 ```
 + `ApplicationContext`: 스프링 컨테이너, 인터페이스
-> 스프링 빈 등록
+
+> 스프링 빈 등록 (AppConfig.java)
 ```java
 public class AppConfig {
 
    @Bean
-   public MemberService memberService(){
-       return new MemberServiceImpl(memberRepository());
+   public MemberService memberService(){   // 빈 이름: memberService
+       return new MemberServiceImpl(memberRepository());   // 빈 객체: MemberServiceImpl@x01
    }
 ```
 + 스프링 컨테이너는 파라미터로 넘어온 설정 클래스 정보를 사용해서 스프링 빈 등록
 + 빈 이름은 메서드 이름을 사용하지만 직접 부여할 수 있음 `@Bean(name="member")`
++ 빈 이름은 항상 다른 이름을 부여해야 함
+
 > 스프링 빈 의존관계 설정
 + 설정 정보 참고해서 의존 관계를 주입
++ 빈을 생성하고 의존관계를 주입하는 단계가 나누어져 있음 
 
 ## 스프링 빈 조회
 #### 컨테이너에 등록된 모든 빈 조회
@@ -326,7 +330,7 @@ class ApplicationContextBasicFindTest {
     @DisplayName("구체 타입으로 조회")
     void findBeanByName2(){
         
-        // 좋지 않은 코드 (구현에 의존함)
+        // 좋은 코드는 아님(역할이 아닌 구현에 의존함)
         MemberService memberService = ac.getBean("memberService", MemberServiceImpl.class);
         Assertions.assertThat(memberService).isInstanceOf(MemberServiceImpl.class);
     }
@@ -344,6 +348,7 @@ class ApplicationContextBasicFindTest {
 + 기본적인 조회 방법: `getBean(빈이름, 타입)`, `getBean(타입)`   
 
 #### 동일한 타입이 둘 이상
+
 ```java
 class ApplicationContextSameBeanFindTesst {
     AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(SameBeanConfig.class);
@@ -372,7 +377,7 @@ class ApplicationContextSameBeanFindTesst {
         }
 
         System.out.println("beansOfType = "+ beansOfType);
-        assertThat(beansOfType.size()).isEqualTo(2);
+        assertThat(beansOfType.size()).isEqualTo(2); 
     }
 
     @Configuration
@@ -387,7 +392,6 @@ class ApplicationContextSameBeanFindTesst {
         public MemberRepository memberRepository2(){
             return new MemoryMemberRepository();
         }
-
     }
 }
 ```   
@@ -452,6 +456,96 @@ public class ApplicationContextExtendsFindTest {
 
 ## 스프링 빈 설정 메타 정보 - BeanDefinition
 + BeanDefinition: 빈 설정 메타정보   
+  + 이를 중심으로 추상화를 함
   + `@Bean`당 각각 하나씩 메타 정보가 생성
   + 스프링 컨테이너는 이 메타정보를 기반으로 스프링 빈을 생성
 + xml, java 등 다양한 빈 설정 형식을 가능하게 지원
+
+# 싱글톤 컨테이너
+## 싱글톤 
++ DI 컨테이너: AppConfig에 요청이 올 때마다 객체를 생성함 → 메모리 낭비 심함 → 싱글톤 패턴의 필요성
+> 순수한 DI 컨테이너 테스트 (SingletonTest.java)
+```java
+public class SingletonTest {
+    @Test
+    @DisplayName("스프링 없는 순수한 DI 컨테이너")
+    void pureContainer() {
+        AppConfig appConfig = new AppConfig();
+        //1. 조회: 호출할 때 마다 객체를 생성
+        MemberService memberService1 = appConfig.memberService();
+        //2. 조회: 호출할 때 마다 객체를 생성
+        MemberService memberService2 = appConfig.memberService();
+        //참조값이 다른 것을 확인 -> 계속해서 객체 생성
+        System.out.println("memberService1 = " + memberService1);
+        System.out.println("memberService2 = " + memberService2);
+        //memberService1 != memberService2
+        assertThat(memberService1).isNotSameAs(memberService2);
+
+    }
+}
+```
+## 싱글톤 패턴
++ 클래스의 인스턴스가 딱 1개만 생성되는 것을 보장하는 디자인 패턴
++ 이미 만들어진 객체를 공유해서 효율적으로 사용 가능
++ 문제점 → 스프링 프레임워크가 전부 해결 가능
+  + 클라이언트가 구체 클래스에 의존 → DIP & OCP 위반 
+  + 테스트가 어려움
+  + 유연성이 떨어짐
+
+> SingletonService.java
+```java
+public class SingletonService {
+
+    //1. static 영역에 객체를 딱 1개만 생성해둔다. (SingletonService가 자기 자신을 생성해서 instance에 참조를 넣어놓는다.)
+    private static final SingletonService instance = new SingletonService();
+
+
+    //2. public으로 열어서 객체 인스터스가 필요하면 이 static 메서드를 통해서만 조회하도록 허용한다.
+    public static SingletonService getInstance(){  
+        return instance;
+    }
+
+    //3. 생성자를 private으로 선언해서 외부에서 new 키워드를 사용한 객체 생성을 못하게 막는다.
+    private SingletonService(){
+    }
+
+    public void login(){
+        System.out.println("싱글톤 객체 로직 호출");
+    }
+}
+```
++ `객체 1개 생성`: static 영역에 하나의 객체만 생성해둠
++ `조회`: instance가 필요할 때 static 메서드(getInstance())만 이용해서 조회하도록 허용 → 같은 객체 반환 위함
++ `생성자를 private으로 선언`: 외부에서 임의로 new로 인한 객체 생성 가능성 차단
+
+> 싱글톤 테스트 (SingletonTest.java)
+```java
+ @Test
+    @DisplayName("싱글톤 패턴을 적용한 객체 사용")
+    void singletonServiceTest(){
+        //1. 조회: 호출할 때 마다 같은 객체를 반환
+        SingletonService singletonService1 = SingletonService.getInstance();
+        //2. 조회: 호출할 때 마다 같은 객체를 반환
+        SingletonService singletonService2 = SingletonService.getInstance();
+
+        //참조값이 같은 것을 확인
+        System.out.println("singletonService1 = " + singletonService1);
+        System.out.println("singletonService2 = " + singletonService2);
+
+        // singletonService1 == singletonService2
+        assertThat(singletonService1).isSameAs(singletonService2);
+    }
+```
+  
+## 싱글톤 컨테이너
++ 싱글톤 패턴의 문제점을 해결, 객체 인스턴스를 싱글톤(1개만 생성)으로 관리
++ `스프링 컨테이너`: 싱글톤 컨테이너의 역할을 함
+> SingletonTest.java
+```java
+@Test
+    @DisplayName("스프링 컨테이너와 싱글톤")
+    void springContainer() {
+        //AppConfig appConfig = new AppConfig(); 
+        ApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);  // 스프링으로 바꾼 코드
+```
+## 싱글톤 방식의 주의점
