@@ -694,4 +694,9 @@ public MemberRepository memberRepository() {
 + 스프링 빈이 존재하면 존재하는 빈을 반환, 스프링 빈이 없으면 생성해서 스프링 빈으로 등록하고 반환하는 코드가 동적으로 생성   
   => 싱글톤 보장
 > `@Configuration`을 붙이지 않으면 싱글톤이 보장되지 않는다!   
-  => 스프링 설정 정보는 항상 `@Configuration` 사용
+  => 스프링 설정 정보는 항상 `@Configuration` 사용   
+  
+# 컴포넌트 스캔
+## 컴포넌트 스캔과 의존관계 자동 주입
+
+
