@@ -549,3 +549,149 @@ public class SingletonService {
         ApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);  // 스프링으로 바꾼 코드
 ```
 ## 싱글톤 방식의 주의점
++ 하나의 객체 인스턴스를 공유하기 때문에 싱글톤 객체는 무상태(stateless)로 설계해야 함
+  + 클라이언트에 의존적이거나, 값을 변경할 수 있는 필드가 있으면 안됨
+  + 자바에서 공유되지 않는, 지역변수, 파라미터, ThreadLocal 등을 사용해야 함
+> 상태 유지(stateful)하는 경우
+```java
+public class StatefulService {
+
+    private int price;  // 상태를 유지하는 필드 (값 변경 가능 10000 -> 20000)
+
+    public void order(String name, int price){
+        System.out.println("name = " + name + " price = " + price);
+        this.price = price;     // 여기가 문제!
+    }
+    
+    public int getPrice(){
+        return price;
+    }
+}
+```
+```java
+class StatefulServiceTest {
+    @Test
+    void statefulServiceSingleton(){
+        ApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class);
+
+        // StatefulService는 싱글톤으로 같은 객체 공유
+        StatefulService statefulService1 = ac.getBean(StatefulService.class);
+        StatefulService statefulService2 = ac.getBean(StatefulService.class);
+
+        //ThreadA: A사용자 10000원 주문
+        statefulService1.order("userA", 10000);
+        //ThreadB: B사용자 20000원 주문
+        statefulService2.order("userB", 20000);
+
+        //ThreadA: 사용자A 주문 금액 조회
+        int price = statefulService1.getPrice();
+        //ThreadA: 사용자A는 10000원을 기대했지만, 기대와 다르게 20000원 출력
+        System.out.println("price = " + price);
+    }
+}
+```
++ `StatefulService`와 `price` 필드는 공유되는 필드로, 값 변경이 가능함 → 문제 상황
+
+> 무상태(stateless)로 변경
+```java
+public class StatefulService {
+
+    public int order(String name, int price){
+        System.out.println("name = " + name + "price = " + price);
+        return price;
+    }
+}
+```
+```java
+class StatefulServiceTest {
+    @Test
+    void statefulServiceSingleton(){
+        ApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class);
+
+        // StatefulService는 싱글톤으로 같은 객체 공유
+        StatefulService statefulService1 = ac.getBean(StatefulService.class);
+        StatefulService statefulService2 = ac.getBean(StatefulService.class);
+
+        //ThreadA: A사용자 10000원 주문
+        int userAPrice = statefulService1.order("userA", 10000);
+        //ThreadB: B사용자 20000원 주문
+        int userBPrice = statefulService2.order("userB", 20000);
+
+        //ThreadA: 10000원 출력
+        System.out.println("price = " + userAprice);
+    }
+}
+```
+⭐ 공유 필드는 정말 조심해야 한다! 
+⭐ 스프링 빈은 항상 무상태(stateless)로 설계하자.
+
+## @Configuration과 바이트코드 조작 
+> AppConfig에 호출 로그 남김
+```java
+@Configuration
+public class AppConfig {
+
+    @Bean 
+    public MemberService memberService(){
+        System.out.println("call AppConfig.memberService");
+        return new MemberServiceImpl(memberRepository());
+    }
+
+    @Bean
+    public MemberRepository memberRepository() {
+        System.out.println("call AppConfig.orderService");
+        return new MemoryMemberRepository();
+    }
+
+    @Bean
+    public OrderService orderService(){
+        System.out.println("call AppConfig.memberRepository");
+        return new OrderServiceImpl(memberRepository(), discountPolicy());
+    }
+
+    @Bean
+    public DiscountPolicy discountPolicy(){
+        //return new FixDiscountPolicy();
+        return new RateDiscountPolicy();
+    }
+}
+```
++ 예상 결과 
+```
+call AppConfig.memberService
+call AppConfig.memberRepository
+call AppConfig.memberRepository
+call AppConfig.orderService
+call AppConfig.memberRepository
+```
++ 실제 결과 
+```
+call AppConfig.memberService
+call AppConfig.memberRepository
+call AppConfig.orderService
+```
++ 각각 2번 `new MemoryMemberRepository`를 호출해서 다른 인스턴스가 생성될 줄 알았는데?
+  + @Bean memberService → new MemoryMemberRepository()
+  + @Bean orderService → new MemoryMemberRepository()
++ 스프링이 클래스의 바이트코드를 조작하는 라이브러리를 사용했기 때문 => 싱글톤 보장
+  + `CGLIB`(바이트코드 조작 라이브러리)로 `AppConfig@CGLIB`(AppConfig 클래스를 상속받은 임의의 클래스) 생성
+  + `AppConfig@CGLIB`를 스프링 빈으로 등록
+
+> AppConfig@CGLIB 예상 코드
+```java
+@Bean
+public MemberRepository memberRepository() {
+ 
+   if (memoryMemberRepository가 이미 스프링 컨테이너에 등록되어 있으면?) {  
+       return 스프링 컨테이너에서 찾아서 반환;
+   } 
+   else { //스프링 컨테이너에 없으면
+       기존 로직을 호출해서 MemoryMemberRepository를 생성하고 스프링 컨테이너에 등록
+       return 반환
+   }
+}
+```
++ 스프링 빈이 존재하면 존재하는 빈을 반환, 스프링 빈이 없으면 생성해서 스프링 빈으로 등록하고 반환하는 코드가 동적으로 생성   
+  => 싱글톤 보장
+> `@Configuration`을 붙이지 않으면 싱글톤이 보장되지 않는다!   
+  => 스프링 설정 정보는 항상 `@Configuration` 사용
