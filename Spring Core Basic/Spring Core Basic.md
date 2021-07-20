@@ -925,4 +925,77 @@ static class TestBean{
 + `@Nullable` : 자동 주입할 대상이 없으면 null이 입력됨
 + `Optional<>` : 자동 주입할 대상이 없으면 'Optional.empty' 입력 
 
-## 롬복과 최신 트렌드
+## 조회 빈이 2개 이상인 경우 문제점과 해결방안
++`@Autowired`: 타입으로 조회, ac.getBean(DiscountPolicy.class)와 유사하게 동작
+> 타입으로 조회하면 선택된 빈이 2개 이상일 때 문제가 발생   
+  Ex) `DiscountPolicy` 의 하위 타입인 `FixDiscountPolicy` , `RateDiscountPolicy` 둘 다 스프링 빈으로 선언하면 `NoUniqueBeanDefinitionException`오류 발생 (오류메세지: 하나의 빈을 기대했는데 아니었음)   
+#### 해결방안
+#### 1. @Autowired 필드 명 매칭
++ 타입 매칭의 결과가 2개 이상인 경우, 필드 명 또는 파라미터 명으로 빈 이름 매칭
+```java
+@Autowired
+public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy rateDiscountPolicy) {
+     this.memberRepository = memberRepository;
+     this.discountPolicy = rateDiscountPolicy;
+}  
+```
+#### 2. @Qualifier 사용
++ 추가 구분자를 붙여주는 방법으로, 빈 이름을 변경하는 것은 아님
+  + 빈 등록시 `@Qualifier`를 붙여 준다
+  + 주입시에 `@Qualifier`를 붙여주고 등록한 이름을 적어준다
+  + `@Qualifier`끼리 매칭한다
+    + 해당 `@Qualifier`가 없다면, 빈 이름을 매칭해본다
+    + 같은 빈 이름도 없다면 `NoSuchBeanDefinitionException` 예외 발생
+> 빈 등록
+```java
+@Component
+@Qualifier("mainDiscountPolicy")
+public class RateDiscountPolicy implements DiscountPolicy {}
+```
+> 생성자 자동 주입
+```java
+@Autowired
+public OrderServiceImpl(MemberRepository memberRepository, @Qualifier("mainDiscountPolicy") DiscountPolicy discountPolicy) {
+    this.memberRepository = memberRepository;
+    this.discountPolicy = discountPolicy;
+}
+```
+#### 3. @Primary 사용
++ 우선순위를 정하는 방법으로, 여러 빈이 매칭되면 `@Primary`가 우선권을 가짐
++ `@Primary`와 `@Qualifier` 활용
+  + 메인 데이터베이스(:자주 사용)의 커넥션을 획득하는 스프링 빈은 `@Primary` 적용 => Simple
+  + 서브 데이터베이스(:특별한 기능, 가끔 사용)의 커넥션 빈을 획득할 때는 `@Qualifier` 적용
+```java
+@Component
+@Primary   // RateDiscountPolicy가 우선권을 가짐
+public class RateDiscountPolicy implements DiscountPolicy {}
+@Component
+public class FixDiscountPolicy implements DiscountPolicy {}
+```
+#### 4. 직접 애노테이션 만들기
++ `@Qualifier("mainDiscountPolicy")` 이렇게 문자를 적으면 컴파일시 타입 체크가 안되기에 사용하는 방법
+
+> MainDiscountPolicy.java
+```java
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Qualifier("mainDiscountPolicy")  // 문자는 컴파일 시 타입 체크 안됨
+public @interface MainDiscountPolicy {
+}
+```
+```java
+@Component
+@MainDiscountPolicy
+public class RateDiscountPolicy implements DiscountPolicy {}
+```
++ 사용하려는 빈 등록시 `@MainDiscountPolicy`를 붙여준다.
+> 생성자 자동 주입
+```java
+@Autowired
+public OrderServiceImpl(MemberRepository memberRepository, @MainDiscountPolicy DiscountPolicy discountPolicy) {
+    this.memberRepository = memberRepository;
+    this.discountPolicy = discountPolicy;
+}
+```
++ OrderServiceImpl 생성자 파라미터 앞에 `@MainDiscountPolicy`를 붙여준다.
