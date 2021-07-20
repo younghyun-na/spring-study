@@ -973,14 +973,14 @@ public class RateDiscountPolicy implements DiscountPolicy {}
 public class FixDiscountPolicy implements DiscountPolicy {}
 ```
 #### 4. 직접 애노테이션 만들기
-+ `@Qualifier("mainDiscountPolicy")` 이렇게 문자를 적으면 컴파일시 타입 체크가 안되기에 사용하는 방법
++ `@Qualifier("mainDiscountPolicy")` 이렇게 문자를 적으면 잘못 입력해도 컴파일시 타입 체크가 안되기에 사용하는 방법
 
 > MainDiscountPolicy.java
 ```java
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
-@Qualifier("mainDiscountPolicy")  // 문자는 컴파일 시 타입 체크 안됨
+@Qualifier("mainDiscountPolicy")   
 public @interface MainDiscountPolicy {
 }
 ```
@@ -998,4 +998,317 @@ public OrderServiceImpl(MemberRepository memberRepository, @MainDiscountPolicy D
     this.discountPolicy = discountPolicy;
 }
 ```
-+ OrderServiceImpl 생성자 파라미터 앞에 `@MainDiscountPolicy`를 붙여준다.
++ OrderServiceImpl 생성자 파라미터 앞에 `@MainDiscountPolicy`를 붙여준다.   
+
+## 조회한 빈이 모두 필요한 경우 (List, Map)
+> 클라이언트가 할인의 종류를 선택할 수 있어서 해당 타입의 스프링 빈이 모두 필요한 경우에 대한 Test 
+```java
+public class AllBeanTest {
+
+    @Test
+    void findAllBean(){
+        ApplicationContext ac = new AnnotationConfigApplicationContext(AutoAppConfig.class, DiscountService.class);
+
+        DiscountService discountService = ac.getBean(DiscountService.class);
+        Member member = new Member(1L,"userA", Grade.VIP);
+        int discountPrice = discountService.discount(member,10000,"fixDiscountPolicy");
+
+        Assertions.assertThat(discountService).isInstanceOf(DiscountService.class);
+        Assertions.assertThat(discountPrice).isEqualTo(1000);
+    }
+
+    static class DiscountService{
+        private final Map<String, DiscountPolicy> policyMap;
+        private final List<DiscountPolicy> policies;
+
+        @Autowired
+        public DiscountService(Map<String, DiscountPolicy> policyMap, List<DiscountPolicy> policies) {
+            this.policyMap = policyMap;
+            this.policies = policies;
+            System.out.println("policyMap = " + policyMap);
+            System.out.println("polices = " + policies);
+        }
+
+        public final int discount(Member member, int price, String discountCode) {
+            DiscountPolicy discountPolicy = policyMap.get(discountCode);
+            return discountPolicy.Discount(member, price);
+        }
+    }
+}
+```
++ `DiscountService`: `Map`으로 모든 `DiscountPolicy`를 주입받음(`fixDiscountPolicy`, `rateDiscountPolicy` 주입됨)
++ `discount() 메서드`: discountCode로 스프링 빈(`fixDiscountPolicy` 또는 `rateDiscountPolicy`)을 찾아서 실행
++ `Map<>` : map의 키에 스프링 빈의 이름을 넣어주고, 그 값으로 해당 타입으로 조회한 모든 스프링 빈을 담아줌
++ `List<DiscountPolicy>` : DiscountPolicy 타입으로 조회한 모든 스프링 빈을 담아줌
+
+### ✔️ 자동, 수동의 올바른 실무 운영 기준
+> 편리한 자동 기능을 기본으로 사용하자
+  + 최근 스프링 부트: 컴포넌트 스캔을 기본으로 사용, 스프링 빈들도 조건이 맞으면 자동으로 등록됨
+> 수동 빈 등록을 사용하는 경우
+  + 업무 로직 빈: 컨트롤러, 서비스, 로직을 처리하는 리포지토리등으로, 비즈니스 요구사항을 개발할 때 추가되거나 변경 
+    => 자동 기능 사용 (문제 파악이 쉬움)
+  + 기술 지원 빈: 업무 로직을 지원하기 위한 하부기술, 공통 관심사(AOP)를 처리할 때 주로 사용   
+    => 수동 빈 등록을 사용 (광범위하게 영향을 미치고 문제 파악이 어려워 설정 정보에 명확하게 드러내야 함)
+> 비즈니스 로직 중에서 다형성을 적극 활용할 때   
+ EX) 의존관계 자동 주입으로 `Map<String, DiscountPolicy>`에 주입을 받는 상황   
+ => 코드만 보고 한번에 빈 파악 불가능   
+  + 수동 빈으로 등록 
+  + 자동으로하면 특정 패키지에 같이 묶어두어야 함
+  
+# 빈 생명주기 콜백 
+## 빈 생명주기 콜백 시작
++ 객체의 초기화와 종료 작업이 필요 (애플리케이션 시작 시점에 필요한 연결을 미리 해두고, 종료 시점에 연결을 모두 종료하는 작업을 진행하기 위함)
+
+> 외부 네트워크에 미리 연결하는 객체 생성 (NetworkClient)
+```java
+public class NetworkClient {
+    private String url; public NetworkClient() {
+        System.out.println("생성자 호출, url = " + url);
+        connect();     // 초기화 과정
+        call("초기화 연결 메시지");
+    }
+}
+```
+#### ⏰ 스프링 빈의 이벤트 라이프 사이클   
+`스프링 컨테이너 생성 → 스프링 빈 생성 → 의존관계 주입 → 초기화 콜백 → 사용 → 소멸전 콜백 → 스프링 종료`
++ 초기화 콜백: 빈이 생성되고, 빈의 의존관계 주입이 완료된 후 호출
++ 소멸전 콜백: 빈이 소멸되기 직전에 호출
+⭐ 객체의 생성과 초기화를 분리하자
+
+## 빈 생명주기 콜백 지원 방법
+#### 1. 인터페이스(InitializingBean, DisposableBean)
+```java
+public class NetworkClient implements InitializingBean, DisposableBean {
+  //의존관계 주입이 끝나면
+  @Override
+  public void afterPropertiesSet() throws Exception {
+      connect();
+      call("초기화 메시지");
+  }
+
+  //빈 소멸 전
+  @Override
+  public void destroy() throws Exception {
+      disconnect();
+  }
+}
+```
+#### 2. 빈 등록 초기화, 소멸 메서드 지정
++ 설정 정보에 `@Bean(initMethod = "init", destroyMethod = "close")`처럼 초기화, 소멸 메서드를 지정할 수 있음
+```java
+public class NetworkClient{
+ //의존관계 주입이 끝나면
+    public void init() {
+        System.out.println("NetworkClient.init");
+        connect();
+        call("초기화 메시지");
+    }
+
+    //빈 소멸 전
+    public void close() {
+        System.out.println("NetworkClient.close");
+        disconnect();
+    } 
+}
+```
++ 설정 정보 사용 특징: 코드를 고칠 수 없는 외부 라이브러리에도 초기화, 종료 메서드 적용 가능
++ 종료 메서드 추론
+  + `destroyMethod`: 기본값이 '추론'으로 `close`, `shutdown`메서드를 추론해서 자동으로 호출
+#### 3. 애노테이션 @PostConstruct, @PreDestory
+```java
+//의존관계 주입이 끝나면
+@PostConstruct
+public class NetworkClient{
+
+    @PostConstruct
+    public void init() throws Exception {
+        System.out.println("NetworkClient.init");
+        connect();
+        call("초기화 메시지");
+    }
+
+    @PreDestroy
+    public void close() throws Exception {
+        System.out.println("NetworkClient.close");
+        disconnect();
+    }  
+}
+```
++ 스프링이 아닌 다른 컨테이너에서도 동작
++ 외부 라이브러리에는 적용 불가능 (외부 라이브러리를 초기화, 종료 해야 하면 `@Bean`의 기능 사용)
+
+# 빈 스코프
+## 빈 스코프란?
+: 빈이 존재할 수 있는 범위
+#### 스코프의 종류
++ `싱글톤`: 기본 스코프, 스프링 컨테이너의 시작과 종료까지 유지되는 가장 넓은 범위의 스코프
++ `프로토타입`: 스프링 컨테이너는 프로토타입 빈의 생성과 의존관계 주입까지만 관여하고 더는 관리하지 않는 매우 짧은 범위의 스코프
++ `웹 관련 스코프`
+  + `request`: 웹 요청이 들어오고 나갈때 까지 유지되는 스코프
+  + `session`: 웹 세션이 생성되고 종료될 때 까지 유지되는 스코프
+  + `application`: 웹의 서블릿 컨텍스와 같은 범위로 유지되는 스코프   
+## 프로토타입 스코프
++ 싱글톤 스코프: 스프링 컨테이너에 조회시, 항상 같은 인스턴스의 스프링 빈을 반환
++ 프로토타입 스코프: 스프링 컨테이너에 조회시, 항상 새로운 인스턴스를 생성해서 반환
++ 스프링 컨테이너는 프로토타입 빈을 생성하고, 의존관계 주입, 초기화까지만 처리함
+  + 프로토타입 빈을 관리할 책임 → 프로토타입 빈을 받은 클라이언트
+  + `@PreDestory` 같은 종료 메서드가 호출되지 않음
+> 프로토타입 스코프 빈 테스트
+```java
+public class PrototypeTest {
+
+    @Test
+    void prototypeBeanFind(){
+        AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(PrototypeBean.class);
+        System.out.println("find prototypeBean1");
+        PrototypeBean bean1 = ac.getBean(PrototypeBean.class);
+        System.out.println("find prototypeBean2");
+        PrototypeBean bean2 = ac.getBean(PrototypeBean.class);
+
+        System.out.println("bean1 = " + bean1);
+        System.out.println("bean2 = " + bean2);
+        assertThat(bean1).isNotSameAs(bean2);
+        
+        ac.close();
+    }
+
+    @Scope("prototype")
+    static class PrototypeBean{
+
+        @PostConstruct
+        public void init(){
+            System.out.println("PrototypeBean.init");
+        }
+
+        @PreDestroy
+        public void destroy(){
+            System.out.println("PrototypeBean.destroy");
+        }
+    }
+}
+```
+#### 싱글톤 빈과 함께 사용시 문제점
++ 스프링은 일반적으로 싱글톤 빈을 사용하므로, 싱글톤 빈이 프로토타입 빈을 사용하게 됨
++ 싱글톤 빈은 생성 시점에만 의존관계 주입을 받기 때문에, 프로토타입 빈이 새로 생성되기는 하지만, 싱글톤 빈과 함께 계속 유지된다는 문제 발생
+> 해결 방법
+#### 1. 스프링 컨테이너에 요청
+```java
+@Autowired
+private ApplicationContext ac;
+public int logic() {
+    PrototypeBean prototypeBean = ac.getBean(PrototypeBean.class);
+    prototypeBean.addCount();
+    int count = prototypeBean.getCount();
+    return count;
+}
+```
++ `ac.getBean()`을 통해서 항상 새로운 프로토타입 빈이 생성
++ DL(의존관계 조회): 직접 필요한 의존관계를 찾는 것
+#### 2. ObjectFactory, ObjectProvider
+```java
+@Autowired
+private ObjectProvider<PrototypeBean> prototypeBeanProvider;
+public int logic() {
+    PrototypeBean prototypeBean = prototypeBeanProvider.getObject();
+    prototypeBean.addCount();
+    int count = prototypeBean.getCount();
+    return count;
+}
+```
++ `prototypeBeanProvider.getObject()`을 통해서 항상 새로운 프로토타입 빈이 생성
++ DL(의존관계 조회): ObjectProvider의 `getObject()`를 호출하면 내부에서는 스프링 컨테이너를 통해 해당 빈을 찾아서 반
+환
++ 스프링에 의존함
+#### 3.JSR-330 Provider
+```java
+//implementation 'javax.inject:javax.inject:1' gradle 추가 필수
+@Autowired
+private Provider<PrototypeBean> provider;
+public int logic() {
+    PrototypeBean prototypeBean = provider.get();
+    prototypeBean.addCount();
+    int count = prototypeBean.getCount();
+    return count;
+}
+```
++ `provider.get()`을 통해서 항상 새로운 프로토타입 빈이 생성
++ DL(의존관계 조회): provider의 `get()`을 호출하면 내부에서는 스프링 컨테이너를 통해 해당 빈을 찾아서 반환
+## 웹 스코프 
++ 웹 환경에서만 동작
++ 스프링이 해당 스코프의 종료시점까지 관리하므로 종료 메서드가 호출됨
+#### 웹 스코프 종류 
++ `request`: HTTP 요청 하나가 들어오고 나갈 때까지 유지되는 스코프, 각각의 HTTP 요청마다 별도의 빈 인스턴스가 생성되고 관리
++ `session`: HTTP Session과 동일 생명주기를 가지는 스코프
++ `application`: 서블릿 컨텍스트와 동일한 생명주기를 가지는 스코프
++ `websocket`: 웹 소켓과 동일한 생명주기를 가지는 스코프
+#### Request 스코프
++ 동시에 여러 HTTP 요청이 와서 정확히 어떤 요청이 남긴 로그인지 구분하기 어려울 때 사용하기 좋은 스코프 
+> 로그를 출력하기 위한 클래스 (MyLogger)
+```java
+@Component
+@Scope(value = "request")
+public class MyLogger {
+ private String uuid;
+ private String requestURL;
+ public void setRequestURL(String requestURL) {
+ this.requestURL = requestURL;
+ }
+ public void log(String message) {
+ System.out.println("[" + uuid + "]" + "[" + requestURL + "] " +
+message);
+ }
+ @PostConstruct
+ public void init() { uuid = UUID.randomUUID().toString();
+ System.out.println("[" + uuid + "] request scope bean create:" + this);
+ }
+ @PreDestroy
+ public void close() {
+ System.out.println("[" + uuid + "] request scope bean close:" + this);
+ }
+}
+```
++ requestURL 은 이 빈이 생성되는 시점에는 알 수 없으므로, 외부에서 setter로 입력
++ 빈이 생성되는 시점에 자동으로 `@PostConstruct` 초기화 메서드를 사용해서 uuid를 생성해서 저장
+
+> 로거가 잘 작동하는지 확인하는 테스트용 컨트롤러 (LogDemoController)
+```java
+@Controller
+@RequiredArgsConstructor
+public class LogDemoController {
+ private final LogDemoService logDemoService; private final MyLogger myLogger;
+ @RequestMapping("log-demo")
+ @ResponseBody
+ public String logDemo(HttpServletRequest request) {
+ String requestURL = request.getRequestURL().toString();
+ myLogger.setRequestURL(requestURL);
+ myLogger.log("controller test");
+ logDemoService.logic("testId");
+ return "OK";
+ }
+}
+```
++ HttpServletRequest를 통해서 요청 URL을 받고, 받은 requestURL 값을 myLogger에 저장
++ myLogger를 통해 다른 http 요청과 구분 가능
+> 비즈니스 로직이 있는 서비스 계층에서의 로그 출력
+```java
+@Service
+@RequiredArgsConstructorpublic class LogDemoService {
+ private final MyLogger myLogger;
+ public void logic(String id) {
+ myLogger.log("service id = " + id);
+ }
+}
+```
++ MyLogger 덕분에 이런 부분을 파라미터로 넘기지 않고, MyLogger의 멤버변수에 저장해서 코드와 계층을 깔끔하게 유지
+⭐ 웹과 관련된 부분은 컨트롤러까지만 사용해야 한다!
+## 스코프와 프록시
+```java
+@Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
+@Component
+public class MyLogger {
+}
+```
++ 적용 대상이 인터페이스가 아닌 클래스일 경우: TARGET_CLASS 
++ 적용 대상이 인터페이스인 경우: INTERFACES 
++ MyLogger의 가짜 프록시 클래스를 만들어두고 HTTP request와 상관 없이 가짜 프록시 클래스를 다른 빈에 미리 주입 가능
+⭐ 애노테이션 설정 변경만으로 원본 객체를 프록시 객체로 대체할 수 있다 (다형성과 DI 컨테이너가 가진 큰 강점)
