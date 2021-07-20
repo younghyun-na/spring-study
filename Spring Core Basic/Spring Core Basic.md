@@ -622,7 +622,7 @@ class StatefulServiceTest {
     }
 }
 ```
-⭐ 공유 필드는 정말 조심해야 한다! 
+⭐ 공유 필드는 정말 조심해야 한다!   
 ⭐ 스프링 빈은 항상 무상태(stateless)로 설계하자.
 
 ## @Configuration과 바이트코드 조작 
@@ -699,4 +699,230 @@ public MemberRepository memberRepository() {
 # 컴포넌트 스캔
 ## 컴포넌트 스캔과 의존관계 자동 주입
 
+#### 1. 컴포넌트 스캔
+: 설정 정보(AppConfig)가 없어도 자동으로 스프링 빈을 등록하는 기능
+> AutoAppConfig.java
+```java
+@Configuration   // @Component가 붙은 클래스 모두 스프링 빈에 등록
+@ComponentScan(
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class)  // 스프링 빈으로 모두 등록해버리기 전에 뺄 것들 명시
+)
+public class AutoAppConfig {
+}
+```
++ `@ComponentScan`: `@Component` 붙은 클래스 모두 스프링 빈에 등록
+  + 의존관계 자동 주입 필요 (설정정보를 안쓰기 때문에 원래 설정정보에 적었던 의존관계를 설정할 방법이 없음)
 
+#### 2. 의존관계 자동 주입
+: 스프링 컨테이너가 자동으로 타입에 맞는 스프링 빈을 찾아서 주입   
+
+> MemberServiceImpl.java
+```java
+@Component  // 빈이 자동등록, 의존관계 설정할 방법이 없음 (수동 등록할 장소가 없음) → @AutoWired 사용
+public class MemberServiceImpl implements MemberService{
+
+    private final MemberRepository memberRepository;
+    
+    @Autowired // 자동 의존관계 주입 (MemberRepository의 타입에 맞는 스프링 빈을 주입)
+               // ac.getBean(MemberRepository.class)
+    public MemberServiceImpl(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
+    }
+}
+```
++ 생성자에 `@Autowired`: 스프링 컨테이너가 자동으로 해당 스프링 빈을 찾아서 주입
+  + 기본 조회 전략: 타입에 맞는 스프링 빈을 찾아서 주입
+  + getBean(MemberRepository.class)와 동일하게 동작
+
+## 탐색 위치와 기본 스캔 대상
+#### 1. 탐색 위치
+```java
+package hello.core;
+
+@Configuration
+@ComponentScan( 
+        basePackages = "hello.core.member",  // member패키지만 컴포넌트 스캔의 대상
+        basePackageClasses = AutoAppConfig.class,  // AutoAppConfig 클래스의 패키지(hello.core)만 컴포넌트 대상
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes =
+                Configuration.class)
+)
+public class AutoAppConfig {
+}
+```
++ `basePackage`: 탐색할 패키지의 시작 위치를 지정, 이 패키지를 포함해서 하위 패키지를 모두 탐색
++ `basePackageClasses`: 지정한 클래스의 패키지를 탐색 시작 위치로 지정
++ 지정하지 않으면, `@ComponentScan`이 붙은 설정 정보 클래스의 패키지(AutoAppConfig)가 시작 위치가 됨   
+> ⭐ 권장 방법   
+  : 패키지 위치를 지정하지 않고, 설정 정보 클래스(AppConfig)의 위치를 프로젝트 최상단(hello.core)에 두는 것   
+#### 2. 컴포넌트 스캔 기본 대상
++ `@Component`: 컴포넌트 스캔에서 사용
++ `@Controller`: 스프링 MVC 컨트롤러로 인식
++ `@Repository`: 스프링 데이터 접근 계층으로 인식, 데이터 계층의 예외를 스프링 예외로 변환
++ `@Configuration`: 스프링 설정 정보로 인식, 스프링 빈이 싱글톤 유지하도록 추가 처리
++ `@Service`: 비즈니스 계층 인식에 도움
+
+## 필터
++ `includeFilters` : 컴포넌트 스캔 대상을 추가로 지정
++ `excludeFilters` : 컴포넌트 스캔에서 제외할 대상을 지정
+> BeanA.java
+```java
+package hello.core.scan.filter;
+
+@MyIncludeComponent
+public class BeanA {
+}
+```
+> BeanB.java
+```java
+package hello.core.scan.filter;
+
+@MyExcludeComponent
+public class BeanB {
+}
+```
+> ComponentFilterAppConfigTest.java
+```java
+public class ComponentFilterAppConfigTest {
+
+    @Test
+    void filterScan(){
+        ApplicationContext ac = new AnnotationConfigApplicationContext(ComponentFilterAppConfig.class);
+        BeanA beanA = ac.getBean("beanA", BeanA.class);
+        assertThat(beanA).isNotNull();    // 조회가 되어야 함. 값이 Null이면 안됨
+        Assertions.assertThrows(
+                NoSuchBeanDefinitionException.class, () -> ac.getBean("beanB", BeanB.class)
+        );   // NoSuchBeanDefinitionException이 나와야 함
+    }
+    @Configuration
+    @ComponentScan(
+            includeFilters = @Filter(type = FilterType.ANNOTATION, classes = MyIncludeComponent.class),
+            excludeFilters = @Filter(type = FilterType.ANNOTATION, classes = MyExcludeComponent.class)
+    )
+    static class ComponentFilterAppConfig {
+    }
+}
+```
++ includeFilters 에 `@MyIncludeComponent`을 추가해서 BeanA가 스프링 빈에 등록됨
++ excludeFilters 에 `@MyExcludeComponent`을 추가해서 BeanB는 스프링 빈에 등록되지 않음
+
+## 중복 등록과 충돌
+#### 1. 자동 빈 등록 vs 자동 빈 등록
+: 컴포넌트 스캔에 의해 자동으로 스프링 빈이 등록될 때 그 이름이 같은 경우 오류 발생   
+  => `ConflictingBeanDefinitionException` 예외 발생
+#### 2. 수동 빈 등록 vs 자동 빈 등록
+: 수동 빈 등록이 우선권을 가짐 (수동 빈이 자동 빈을 오버라이딩)
+  + 최근 스프링 부트에서는 오류가 발생하도록 기본 값을 바꿈 (설정이 꼬이는 것을 방지)
+  
+# 의존관계 자동 주입
+## 의존관계 주입 방법
+#### 1. 생성자 주입   
++ 생성자 호출시점에 딱 1번만 호출되는 것이 보장됨
++ **불변**, **필수** 의존관계에 사용
+  + 생성자를 통해서만 의존관계 주입, 외부에서 인스턴스 변경이 불가능  
+> ⭐ 생성자가 1개일 때, `@Autowired` 생략 가능  
+
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+
+   private final MemberRepository memberRepository;  // final 값은 꼭 있어야 함
+   private final DiscountPolicy discountPolicy;
+   
+   // @Autowired
+   public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
+       this.memberRepository = memberRepository;
+       this.discountPolicy = discountPolicy;
+   }
+}
+```
+> 생성사 주입을 사용해야 한다!
+  + 의존관계를 변경하지 못하게 하는 장점 (불변)
+  + setter 주입에서는 의존관계 주입을 누락할 수 있다는 단점이 있음 (누락 방지)
+  + `final` 키워드 사용 가능하다는 장점 (생성자에서 값이 설정되지 않는 오류 방지)
+    + 생성자에서만 값을 세팅할 수 있음
+
+#### 2. setter 주입
++ 필드의 값을 변경하는 수정자 메서드(setter)를 통해서 의존관계 주입
++ **선택**, **변경** 가능성이 있는 의존관계에 사용
+
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+
+    private MemberRepository memberRepository;
+    private DiscountPolicy discountPolicy;
+    
+    @Autowired
+    public void setMemberRepository(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
+    }
+    
+    @Autowired
+    public void setDiscountPolicy(DiscountPolicy discountPolicy) {
+        this.discountPolicy = discountPolicy;
+    }
+}
+```
+
+#### 3. 필드 주입  
++ 필드에 바로 주입하는 방법
++ 외부에서 변경이 불가능해서 테스트 하기 힘듦
++ 테스트 코드나 @Configuration에서만 사용할 것, 그 외에는 사용 X    
+
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private DiscountPolicy discountPolicy;
+}
+````  
+
+#### 4. 일반 메서드 주입  
++ 한 번에 여러 필드를 주입 받을 수 있음
++ 잘 사용하지 않음
++ 
+```java
+@Component
+public class OrderServiceImpl implements OrderService {
+    private MemberRepository memberRepository;
+    private DiscountPolicy discountPolicy;
+
+    @Autowired
+    public void init(MemberRepository memberRepository, DiscountPolicy discountPolicy) {
+       this.memberRepository = memberRepository;
+       this.discountPolicy = discountPolicy;
+    }
+} 
+```
+#### 5. 옵션 처리
+: 주입할 스프링 빈이 없을 때 자동 주입 대상을 옵션으로 처리하는 방법   
+
+> AutoWiredTest.java
+```java
+static class TestBean{
+        
+        // 호출 안됨 (Member는 빈으로 등록되어 있지 않음)
+        @Autowired(required = false)
+        public void setNoBean1(Member noBean1){       
+            System.out.println("noBean1 =" + noBean1);
+        }    
+        
+        // null 호출 (@Nullable)
+        public void setNoBean1(@Nullable Member noBean2){
+            System.out.println("noBean2 =" + noBean2);
+        }   
+        
+        //Optional.empty 호출
+        @Autowired(required = false)
+        public void setNoBean3(Optional<Member> member) {
+            System.out.println("setNoBean3 = " + member);
+        }
+    }
+}
+```
++ `@Autowired(required = false)`: 자동 주입할 대상이 없으면 수정자 메서드 자체가 호출 안됨
++ `@Nullable` : 자동 주입할 대상이 없으면 null이 입력됨
++ `Optional<>` : 자동 주입할 대상이 없으면 'Optional.empty' 입력 
+
+## 롬복과 최신 트렌드
