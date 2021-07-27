@@ -62,22 +62,23 @@ HTTP 메시지에 모든 형태의 데이터 전송 가능
 <img src="https://user-images.githubusercontent.com/69106295/127194374-a5c4ecb5-141d-44ad-8a8f-9c8f4f212b37.png" width="30%" height="30%"/>
 
 > 요청 메시지
-<img src = "https://user-images.githubusercontent.com/69106295/127193512-35aad03f-e91f-4501-841c-184cabb0deac.png" width="30%" height="30%"/>
-1. Start line: request-line = Http 메서드 + 요청 대상+ Http Version
-  + `Http 메서드`: 서버가 수행해야 할 동작 지정 (GET: 리소스 조회, POST: 요청 내역 처리)
+1. Start line: `request-line` = Http 메서드 + 요청 대상 + Http Version   
+  + `Http 메서드`: 서버가 수행해야 할 동작 지정 (GET: 리소스 조회, POST: 요청 내역 처리)   
   + `요청 대상`: "/"로 시작되는 절대 경로[?쿼리]  (ex. /search?q=hello&hl=ko)
   + `Http Version`: (ex. HTTP/1.1)
+2. Header  
 3. Message body: 실제 전송할 데이터
   + 요청 메세지가 body 본문을 가질 수도, 안 가질 수도 있음
+<img src = "https://user-images.githubusercontent.com/69106295/127193512-35aad03f-e91f-4501-841c-184cabb0deac.png" width="30%" height="30%"/>
 
 > 응답 메시지
-<img src = "https://user-images.githubusercontent.com/69106295/127193728-dc393800-9602-4059-b389-3a74929d885a.png" width="30%" height="30%"/>
 1. Start line: status-line = Http Version + status code + 이유 문구
- + `status code`: 요청 성공, 실패를 나타냄 (200:성공, 400:클라이언트 요청 오류, 500:서버 오류)
- + `이유 문구`: 짧은 상태 코드 설명 글
+  + `status code`: 요청 성공, 실패를 나타냄 (200: 성공, 400: 클라이언트 요청 오류, 500: 서버 오류)
+  + `이유 문구`: 짧은 상태 코드 설명 글   
 2. Header: HTTP 전송에 필요한 모든 부가정보
-+ header-field = field-name: field-value
++ header-field = field-name: field-value   
 3. Message body: 실제 전송할 데이터
+<img src = "https://user-images.githubusercontent.com/69106295/127193728-dc393800-9602-4059-b389-3a74929d885a.png" width="30%" height="30%"/>
 
 # Http 메서드
 ## API URI 설계 
