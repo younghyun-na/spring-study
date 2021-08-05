@@ -12,16 +12,17 @@
 ## 🔑 Intellij 단축키
 |단축키|설명|   
 |------|---|
+|`Shift + F10`| 실행 (Run)|  
 |`Alt + Enter`| 오류 수정, 인텐션 액션, 검사|
-|`Shift + Alt + Enter` |첫 번째 제안 적용|
-|`Alt + F12`| 터미널 열기|
 |`Ctrl + Shift + Space`|코드 자동완성|
-|`Alt + Insert`| getter/setter/생성자 자동완성|
+|`Alt + Insert`| getter/setter/생성자 자동완성|  
 |`Ctrl + Space + Space`|static method 자동완성|
-|`Ctrl + i`|Override 메서드 자동완성|
+|`Ctrl + Alt + v`|변수 추출|
 |`Ctrl + p`|	커서가 위치한 메서드의 매개변수 조회|
-|`Ctrl + Alt + v`|new class 완성|
+|`Ctrl + b`| 해당 코드의 선언부로 이동|
+|`Ctrl + Alt + b`| 해당 코드의 구현부로 이동|
 |`Ctrl + Shift + t`|test 생성|
 |`psvm`|public static void main(String[] args)|  
-|`sout`|System.out.println()| 
-
+|`sout`|System.out.println| 
+|`soutv`|	System.out.println 변수명 출력|
+|`soutm`|	System.out.println 메서드명 출력|
