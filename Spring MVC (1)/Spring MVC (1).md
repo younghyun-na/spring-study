@@ -9,6 +9,8 @@
   + WAS는 중요한 애플리케이션 로직만 전담 가능, 효율적인 리소스 관리 
   + WAS, DB 장애시 WEB 서버가 오류 화면 제공 가능 (Web Server는 잘 죽지X, WAS는 잘 죽음)
 ### 📍 서블릿
+: 클라이언트의 요청을 처리하고, 그 결과를 반환하는 Servlet 클래스의 구현 규칙을 지킨 자바 웹 프로그래밍 기술
+
 ```java
 @WebServlet(name = " helloServlet", urlPatterns = "/hello")  
 public class HelloServlet extends HttpServlet {
@@ -79,5 +81,5 @@ public class HelloServlet extends HttpServlet {
 
 ## 서블릿 
 ### 📍 프로젝트 생성
-
+> 
 
