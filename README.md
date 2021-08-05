@@ -20,7 +20,6 @@
 |`Ctrl + Space + Space`|static method 자동완성|
 |`Ctrl + i`|Override 메서드 자동완성|
 |`Ctrl + p`|	커서가 위치한 메서드의 매개변수 조회|
-|`Alt + Enter`|import class|
 |`Ctrl + Alt + v`|new class 완성|
 |`Ctrl + Shift + t`|test 생성|
 |`psvm`|public static void main(String[] args)|  
