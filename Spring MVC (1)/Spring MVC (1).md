@@ -81,5 +81,98 @@ public class HelloServlet extends HttpServlet {
 
 ## 서블릿 
 ### 📍 프로젝트 생성
-> 
+스프링 부트가 내장 톰켓 서버를 띄워줌 (내부의 서블릿 컨테이너 → helloServlet 생성)
+```java
+@WebServlet(name = "helloServlet", urlPatterns = "/hello")
+public class HelloServlet extends HttpServlet {
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        System.out.println("HelloServlet.service");
+
+        System.out.println("request = " + request);
+        System.out.println("response = " + response);
+
+        String username = request.getParameter("username");
+        System.out.println("username = " + username);
+
+        response.setContentType("text/plain");       //헤더 정보
+        response.setCharacterEncoding("utf-8");      //헤더 정보
+        response.getWriter().write("hello " + username);
+    }
+}
+```
++ `name`: servlet 이름
++ `urlPatterns`: url 매핑
+
+### 📍 HttpServletRequest
+> Http 요청 메시지
+```
+POST /save HTTP/1.1      // start line
+Host: localhost:8080     // 헤더
+Content-Type: application/x-www-form-urlencoded   // 헤더
+username=kim&age=20      // 바디
+```
++ `START LINE` : HTTP 메소드, URL, 쿼리 스트링, 스키마/프로토콜 쿼리 스트링
++ `헤더`: 헤더 조회
++ `바디`: form 파라미터 형식 조회, message body 데이터 직접 조회
+
+✔ HttpServletRequest의 부가 기능 
+1. 객체 임시 저장소 기능
++ 해당 HTTP 요청이 시작부터 끝날 때 까지 유지되는 임시 저장소 기능
+  + 저장: `request.setAttribute(name, value)`
+  + 조회: `request.getAttribute(name)`
+  
+2. 세션 관리 기능
++ `request.getSession(create: true)`
+
+### 📍 HTTP 요청 데이터
+#### 1. GET 쿼리 파라미터
+: `request.getParameter()` 메시지 바디 없이, URL의 쿼리 파라미터에 데이터를 포함해서 전달
+```java
+/**
+ * 1. 파라미터 전송 기능
+ * http://localhost:8080/request-param?username=hello&age=20
+ * <p>
+ * 2. 동일한 파라미터 전송 가능
+ * http://localhost:8080/request-param?username=hello&username=kim&age=20
+ */
+ 
+@WebServlet(name = "requestParamServlet", urlPatterns = "/request-param")
+public class RequestParamServlet extends HttpServlet {
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+       // 1. 전체 파라미터 조회 
+        request.getParameterNames().asIterator()
+                .forEachRemaining(paramName ->  System.out.println(paramName + "=" + request.getParameter(paramName)));
+       /* 1-출력: username=hello
+                age=20       */
+                
+                
+       // 2. 단일 파라미터 조회
+        String username = request.getParameter("username");
+        String age = request.getParameter("age");
+        System.out.println("request.getParameter(username) = " + username);
+        System.out.println("request.getParameter(age) = " + age);
+       /* 2-출력: request.getParameter(username) = hello
+               request.getParameter(age) = 20        */   
+               
+               
+       // 3. 이름이 같은 복수 파라미터 조회
+        String[] usernames = request.getParameterValues("username");
+        for (String name : usernames) {
+            System.out.println("username=" + name); 
+        }
+       /* 3-출력: username=hello
+               username=kim    */
+    }
+}
+```
+#### 2. POST HTML Form
+: 메시지 바디에 쿼리 파리미터 형식으로 데이터를 전달 
++ content-type: 메시지 바디의 데이터 형식을 지정하는 것으로, 꼭 필요함
+  + `application/x-www-form-urlencoded` 형식
+  + GET에서 본 쿼리 파라미터 형식과 같기에, `request.getParameter()`로  조회 가능
++ message body: username=hello&age=20
+
+#### 3-1. API 메시지 바디 - 단순 텍스트
 
