@@ -171,8 +171,192 @@ public class RequestParamServlet extends HttpServlet {
 : 메시지 바디에 쿼리 파리미터 형식으로 데이터를 전달 
 + content-type: 메시지 바디의 데이터 형식을 지정하는 것으로, 꼭 필요함
   + `application/x-www-form-urlencoded` 형식
-  + GET에서 본 쿼리 파라미터 형식과 같기에, `request.getParameter()`로  조회 가능
+  + GET에서 본 쿼리 파라미터 형식과 같기에, `request.getParameter()`로  조회 가능 
 + message body: username=hello&age=20
 
 #### 3-1. API 메시지 바디 - 단순 텍스트
++ HTTP message body에 데이터를 직접 담아서 요청
++ 데이터 형식: 주로 JSON
++ `POST`, `PUT`, `PATCH`에서 이용
+> 단순 텍스트 전송   
+  + content-type: text/plain   
+  + message body: hello
+```java
+@WebServlet(name = "requestBodyStringServlet", urlPatterns = "/request-body-string")
+public class RequestBodyStringServlet extends HttpServlet {
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        ServletInputStream inputStream = request.getInputStream();    // byte 코드
+        String messageBody = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);    // byte 코드를 문자열로 반환 
+        
+        System.out.println("messageBody = " + messageBody);
+        
+        response.getWriter().write("ok");
+    }
+}
+```
+> 출력 결과
+```
+messageBody = hello
+```
+
+#### 3-2. API 메시지 바디-JSON
+> JSON 형식으로 파싱할 수 있게 객체 생성
+```java
+@Getter @Setter
+public class HelloData {
+ private String username;
+ private int age;
+}
+```
+> JSON 형식 전송   
+  + content-type: application/json 
+  + message body: {"username": "hello", "age": 20}
+```java
+@WebServlet(name = "requestBodyJsonServlet", urlPatterns = "/request-body-json")
+public class RequestBodyJsonServlet extends HttpServlet {
+
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        ServletInputStream inputStream = request.getInputStream();
+        String messageBody = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+
+        HelloData helloData = objectMapper.readValue(messageBody, HelloData.class);
+
+        System.out.println("messageBody = " + messageBody);
+        System.out.println("helloData.username = " + helloData.getUsername());
+        System.out.println("helloData.age = " + helloData.getAge());
+
+        response.getWriter().write("ok");
+    }
+}
+```
+> 출력 결과
+```
+messageBody = {"username": "hello", "age": 20}
+data.username = hello
+data.age=20
+```
++ `ObjectMapper`:  JSON 변환 라이브러리   
+
+### 📍 HTTPServletResponse   
+#### 기본 사용법   
+> HTTP 응답 메시지 생성
+  + HTTP 응답 코드 지정
+  + header 생성
+  + message body 생성
+  
+```java
+@WebServlet(name = "responseHeaderServlet", urlPatterns = "/response-header")
+public class ResponseHeaderServlet extends HttpServlet {
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+       
+       //[status-line]
+        response.setStatus(HttpServletResponse.SC_OK);
+        
+        //[response-headers]
+        response.setHeader("Content-Type", "text/plain;charset=utf-8");
+        response.setHeader("Cache-Control", "no-cache, no-store, must- revalidate" );  // 캐시 완전 무효화
+        response.setHeader("Pragma", "no-cache");
+        response.setHeader("my-header","hello");
+
+        //[Header 편의 메서드]
+        content(response);
+        cookie(response);
+        redirect(response);
+
+        //[message body]
+        PrintWriter writer = response.getWriter();
+        writer.print("ok");
+    }
+}
+```  
+
+> 편의 기능 제공
+  + Content 편의 메서드
+  ```java
+  private void content(HttpServletResponse response) {
+        //Content-Type: text/plain;charset=utf-8
+        //Content-Length: 2
+        //response.setHeader("Content-Type", "text/plain;charset=utf-8");
+        response.setContentType("text/plain");
+        response.setCharacterEncoding("utf-8");
+        //response.setContentLength(2); //(생략시 자동 생성)
+  }
+  ```
+  
+  + 쿠키 편의 메서드
+  ```java
+  private void cookie(HttpServletResponse response) {
+      //Set-Cookie: myCookie=good; Max-Age=600;
+      //response.setHeader("Set-Cookie", "myCookie=good; Max-Age=600");
+      Cookie cookie = new Cookie("myCookie", "good");
+      cookie.setMaxAge(600);   //600초
+      response.addCookie(cookie);
+  }
+  ```
+  
+  + redirect 편의 메서드
+  ```java
+  private void redirect(HttpServletResponse response) throws IOException {
+  //Status Code 302
+  //Location: /basic/hello-form.html
+  //response.setStatus(HttpServletResponse.SC_FOUND); //302
+  //response.setHeader("Location", "/basic/hello-form.html");
+      response.sendRedirect("/basic/hello-form.html");
+  ```
+#### HTTP 응답 데이터 (단순 텍스트, HTML)
+1. 단순 텍스트 응답: `writer.println("ok");`
+2. HTML 응답: content-type을 `text/html` 로 지정   
+
+   ``` java
+   @WebServlet(name = "responseHtmlServlet", urlPatterns = "/response-html")
+   public class ResponseHtmlServlet extends HttpServlet {
+       @Override
+       protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+           //Content-Type: text/html;charset=utf-8
+           response.setContentType("text/html");
+           response.setCharacterEncoding("utf-8");
+           PrintWriter writer = response.getWriter();
+           writer.println("<html>");
+           writer.println("<body>");
+           writer.println(" <div>안녕?</div>");
+           writer.println("</body>");
+           writer.println("</html>");
+       }
+   }
+   ```
+3. HTTP API - MessageBody에 직접 JSON으로 응답
+  + content-type을 `application/json` 로 지정 
+  + `ObjectMapper.writeValueAsString()` 사용하여 객체를 JSON 문자로 변경
+  
+   ```java
+   @WebServlet(name = "responseJsonServlet", urlPatterns = "/response-json")
+   public class ResponseJsonServlet extends HttpServlet {
+   
+       private ObjectMapper objectMapper = new ObjectMapper();
+       
+       @Override
+       protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+       
+            response.setHeader("content-type", "application/json");
+            response.setCharacterEncoding("utf-8");
+
+            HelloData data = new HelloData();
+            data.setUsername("kim");
+            data.setAge(20);
+
+            //{"username":"kim","age":20}
+            String result = objectMapper.writeValueAsString(data);
+            response.getWriter().write(result);
+        }
+   }    
+   ```
+
+
 
