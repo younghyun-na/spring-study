@@ -358,5 +358,92 @@ public class ResponseHeaderServlet extends HttpServlet {
    }    
    ``` 
 # 서블릿, JSP, MVC 패턴
-## 📍 서블릿
+## 📍 서블릿으로 회원 관리  
++ **서블릿**: 웹 기반의 요청에 대한 동적인 처리가 가능한 서버 측에서 돌아가는 자바 프로그램 (Java코드 안에 HTML코드)
+> MemberSaveServlet.java (회원 저장)
+```java
+@WebServlet(name = "memberSaveServlet", urlPatterns = "/servlet/members/save")
+public class MemberSaveServlet extends HttpServlet {
 
+    private MemberRepository memberRepository = MemberRepository.getInstance();
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+    
+        // 1. 파라미터를 조회해서 Member 객체를 생성
+        String username = request.getParameter("username");
+        int age = Integer.parseInt(request.getParameter("age"));
+        Member member = new Member(username, age);
+        
+        // 2. Member 객체를 MemberRepository를 통해서 저장
+        memberRepository.save(member);
+        
+        // 3. Member 객체를 사용해서 결과 화면용 HTML을 동적으로 만들어서 응답
+        response.setContentType("text/html");
+        response.setCharacterEncoding("utf-8");
+        PrintWriter w = response.getWriter();
+        
+        w.write("<html>\n" +
+                " <head>\n" +
+                " <meta charset=\"UTF-8\">\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "성공\n" +
+                "<ul>\n" +
+                " <li>id="+member.getId()+"</li>\n" +
+                " <li>username="+member.getUsername()+"</li>\n" +
+                " <li>age="+member.getAge()+"</li>\n" +
+                "</ul>\n" +
+                "<a href=\"/index.html\">메인</a>\n" +
+                "</body>\n" +
+                "</html>");
+    }
+}
+```
+✔ 한계점: 뷰(View)화면을 위한 HTML을 만드는 작업이 자바 코드에 섞여서 지저분하고 복잡   
++ 자바 코드로 HTML을 만들어 내는 것 보다 HTML 문서에 동적으로 변경해야 하는 부분만 자바 코드를 넣을 수 있다면 더 편리할 것   
+ => `템플릿 엔진`:  HTML 문서에서 필요한 곳만 코드를 적용해서 동적으로 변경 가능 (ex. JSP, Thymeleaf 등)
+ 
+## 📍 JSP로 회원 관리 
++ HTML코드 안에 Java코드
+> save.jsp (회원 저장)
+```jsp
+<%@ page import="hello.servlet.domain.member.MemberRepository" %>   // 자바의 import문
+<%@ page import="hello.servlet.domain.member.Member" %>
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%
+    /* 회원 저장을 위한 비즈니스 로직 */
+    // request, response 사용 가능
+    MemberRepository memberRepository = MemberRepository.getInstance();
+    
+    System.out.println("save.jsp");
+    
+    String username = request.getParameter("username");
+    int age = Integer.parseInt(request.getParameter("age"));
+    
+    Member member = new Member(username, age);
+    System.out.println("member = " + member);
+    memberRepository.save(member);
+%>
+
+/* 뷰를 렌더링하는 부분 */
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+성공
+<ul>
+    <li>id=<%=member.getId()%></li>
+    <li>username=<%=member.getUsername()%></li>
+    <li>age=<%=member.getAge()%></li>
+</ul>
+<a href="/index.html">메인</a>
+</body>
+</html>
+```
++ `<% ~~ %>`: 자바 코드 입력하는 부분   
+> ✔ 한계점: 다양한 코드가 모두 JSP에 노출, 너무 많은 역할을 함 (유지보수 힘듦)
++ 비즈니스 로직은 서블릿처럼 다른곳에서 처리하고, JSP는 목적에 맞게 HTML로 화면(View)을 그리는 일에 집중하도록 하면 편리할 것   
+=> `MVC 패턴` 등장
+## 📍 MVC 패턴
