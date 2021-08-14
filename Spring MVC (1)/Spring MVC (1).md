@@ -576,3 +576,5 @@ public class MvcMemberSaveServlet extends HttpServlet {
 + 해결방법: `프론트 컨트롤러 패턴`(컨트롤러 호출 전에 먼저 공통 기능을 처리)   
 
 ## 📍 MVC 프레임워크 만들기
+<img src = "https://user-images.githubusercontent.com/69106295/129441286-f2e9ae85-04a5-4014-be12-b7c6e03e9372.png" width=50% height=50%>
+
