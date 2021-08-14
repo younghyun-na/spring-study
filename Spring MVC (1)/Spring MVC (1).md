@@ -468,3 +468,111 @@ public class MemberSaveServlet extends HttpServlet {
 <img src = "https://user-images.githubusercontent.com/69106295/128744487-ec7d18f3-6a3c-4437-a8e6-fd9030958ebf.png" width=70% height=70%>
 
 ### MVC 패턴의 적용
++ Controller: 서블릿
++ View: JSP
++ Model: HttpServletRequest 객체 (request 내부에 데이터 저장소 가지고 있음)
+  + `request.setAttribute()`: 데이터 보관
+  + `request.getAttribute()`: 데이터 조회
+
+> 회원 등록 폼 - Controller
+```java
+@WebServlet(name = "mvcMemberFormServlet", urlPatterns = "/servlet-mvc/members/new-form")
+public class MvcMemberFormServlet extends HttpServlet {
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String viewPath = "/WEB-INF/views/new-form.jsp";
+        RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+        dispatcher.forward(request, response);     // 서블릿에서 jsp 호출 가능
+    }
+}
+```
++ `dispatcher.forward()`: 다른 서블릿이나 JSP로 이동할 수 있는 기능, 서버 내부에서 다시 호출이 발생   
++ `/WEB-INF`: 이 경로안에 JSP가 있으면 외부에서 직접 JSP를 호출할 수 없음 (컨트롤러를 통해서 JSP 호출해야 함)   
+
+✔ 서블릿에서 특정 URL이나 페이지로 이동하게 하는 두 가지 방식 (Redirect vs Dispatcher)
+  + Redirect방식 `sendRedirect()` (이동하기)
+    + 실제 클라이언트에게 응답이 나갔다가 클라이언트가 redirect 경로로 다시 요청
+    + 새로운 페이지로 완전히 이동해서 기존 데이터를 하나도 사용할 수 없음
+  + Dispatcher방식 `forward()` (전달하기)
+    + 클라이언트가 요청하면서 전송한 데이터를 그대로 유지 
+    + 서버 내부에서 일어나는 호출이기 때문에 클라이언트가 전혀 인지하지 못함  
+  
+> 회원 등록 폼 - View
+```jsp
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+<!-- 상대경로 사용, [현재 URL이 속한 계층 경로 + /save] -->
+<form action="save" method="post">
+    username: <input type="text" name="username" />
+    age: <input type="text" name="age" />
+    <button type="submit">전송</button>
+</form>
+</body>
+</html>
+```
++ 절대 경로가 아니라 상대경로인 것을 알 수 있음
+  + 폼 전송시 현재 URL이 속한 계층 경로 + save가 호출   
+   => 현재 경로 `/servlet-mvc/members/`에서 `/servlet-mvc/members/save`로 자동 변경)
+
+> 회원 저장 - Controller
+```java
+@WebServlet(name = "mvcMemberSaveServlet", urlPatterns = "/servlet/members/save")
+public class MvcMemberSaveServlet extends HttpServlet {
+
+    private MemberRepository memberRepository = MemberRepository.getInstance();
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        String username = request.getParameter("username");
+        int age = Integer.parseInt(request.getParameter("age"));
+
+        Member member = new Member(username, age);
+        memberRepository.save(member);
+
+        //Model에 데이터를 보관한다.
+        request.setAttribute("member", member);
+
+        String viewPath = "/WEB-INF/views/save-result.jsp";
+        RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+        dispatcher.forward(request, response);
+    }
+}
+```
++ Model: `HttpServletRequest` 
+  + `setAttribute()`를 사용하여 request 객체에 데이터를 보관해서 뷰에 전달
++ View는 `request.getAttribute()`를 사용해서 데이터 꺼냄   
+
+> 회원 저장 - View
+```jsp
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<html>
+<head>
+ <meta charset="UTF-8">
+</head>
+<body>
+성공
+<ul>
+ <li>id=${member.id}</li>
+ <li>username=${member.username}</li>
+ <li>age=${member.age}</li>
+</ul>
+<a href="/index.html">메인</a>
+</body>
+</html>
+```
++ member 객체 조회: `<%= request.getAttribute("member")%>` → `${member}` (JSP에서 제공)   
+
+### MVC 패턴의 한계
+#### MVC 컨트롤러의 단점
++ 문제점: 공통 처리가 어렵다.   
+  + forward 중복, ViewPath 중복 
++ 해결방법: `프론트 컨트롤러 패턴`(컨트롤러 호출 전에 먼저 공통 기능을 처리)   
+
+## 📍 MVC 프레임워크 만들기
