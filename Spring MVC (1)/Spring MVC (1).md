@@ -588,7 +588,7 @@ public class MvcMemberSaveServlet extends HttpServlet {
 
 <img src = "https://user-images.githubusercontent.com/69106295/130256562-d3aa23a6-0077-4d88-b14d-f73a01978219.png" width=50% height=50%>   
 
-> ControllerV1
+> ControllerV1 (인터페이스)
 ```java
 public interface ControllerV1 {
     void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException;
@@ -657,4 +657,80 @@ public class FrontControllerServletV1 extends HttpServlet {
    + 없다면, `404(SC_NOT_FOUND)` 상태 코드를 반환
    + 있다면, `controller.process(request, response)` 을 호출해서 해당 컨트롤러를 실행   
 
-### 2. View 분리 - v2
+### 2. View 분리 - v2   
++ 뷰를 처리하는 객체 생성 (why? 모든 컨트롤러에서 뷰로 이동하는 부분에 중복 존재, 이를 분리하기 위함)
+
+<img src = "https://user-images.githubusercontent.com/69106295/130276060-01b81f17-496d-4d1c-a91f-f434727756d7.png" width=50% height=50%>   
+
+> MyView: 뷰를 처리하는 객체
+```java
+public class MyView {
+    private String viewPath;  // 4-2. viewPath = "/WEB-INF/views/new-form.jsp"
+
+    public MyView(String viewPath) {
+        this.viewPath = viewPath;
+    }
+
+    // 뷰를 만드는 행위 자체: render
+    public void render(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+        dispatcher.forward(request, response);  // 4-3. new-form.jsp로 dispatcher forward가 됨
+    }
+}
+```
++ `view.render()` 호출 결과: `forward`로직 수행으로 JSP 실행   
+
+> ControllerV2 (인터페이스)
+```java
+public interface ControllerV2 {
+    MyView process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException;
+}
+```
++ 컨트롤러의 호출 결과: `MyView`를 반환
+
+> MemberFormControllerV2 - 회원 등록 폼
+```java
+public class MemberFormControllerV2 implements ControllerV2 {
+    @Override
+    public MyView process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        return new MyView("/WEB-INF/views/new-form.jsp");   // 3-2. MyView를 생성해서 넘겨줌 (모든 컨트롤러의 역할)
+    }
+}
+```
+
+> FrontControllerServletV2 - 프론트 컨트롤러
+```java
+// ex) 1. /front-controller/v2/members/new-form
+@WebServlet(name = "frontControllerServletV2", urlPatterns = "/front-controller/v2/*")
+public class FrontControllerServletV2 extends HttpServlet {
+
+    private Map<String, ControllerV2> controllerMap = new HashMap<>();
+
+    public FrontControllerServletV2() {
+        controllerMap.put("/front-controller/v2/members/new-form", new MemberFormControllerV2());
+        controllerMap.put("/front-controller/v1/members/save", new MemberSaveControllerV2());
+        controllerMap.put("/front-controller/v2/members/members", new MemberListControllerV2());
+    }
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        String requestURI = request.getRequestURI();
+
+        // 2. MemberFormControllerV2를 찾음
+        ControllerV2 controller = controllerMap.get(requestURI);
+
+        if (controller == null) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        // 3-1. MemberFormControllerV2 호출 -> 3-3.반환 결과: new MyView("/WEB-INF/views/new-form.jsp")
+        MyView view = controller.process(request, response);
+        // 4-1. 이 view의 render를 호출 -> 4-4. JSP에서의 결과가 응답으로 웹브라우저에 나타남
+        view.render(request, response);
+    }
+}
+```
++ 프론트 컨트롤러의 도입 => `MyView` 객체의 `render()`를 호출하는 부분을 모두 일관되게 처리 가능해짐
++ 각각의 컨트롤러의 역할: `MyView` 객체를 생성만 해서 반환하는 것
