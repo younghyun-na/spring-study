@@ -576,5 +576,85 @@ public class MvcMemberSaveServlet extends HttpServlet {
 + 해결방법: `프론트 컨트롤러 패턴`(컨트롤러 호출 전에 먼저 공통 기능을 처리)   
 
 ## 📍 MVC 프레임워크 만들기
+### FrontController 
 <img src = "https://user-images.githubusercontent.com/69106295/129441286-f2e9ae85-04a5-4014-be12-b7c6e03e9372.png" width=50% height=50%>
 
++ 프론트 컨트롤러 서블릿 하나로 클라이언트의 요청을 받음
++ 프론트 컨트롤러가 요청에 맞는 컨트롤러를 찾아서 호출   
++ 프론트를 제외한 나머지 컨트롤러는 서블릿을 사용하지 않아도 됨
+
+### 1. 프론트 컨트롤러 도입 - v1
++ 기존 코드를 최대한 유지하면서, 프론트 컨트롤러를 도입   
+
+<img src = "https://user-images.githubusercontent.com/69106295/130256562-d3aa23a6-0077-4d88-b14d-f73a01978219.png" width=50% height=50%>   
+
+> ControllerV1
+```java
+public interface ControllerV1 {
+    void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException;
+}
+```
++ 서블릿과 비슷한 모양의 컨트롤러의 인터페이스
++ 각 컨트롤러들은 이 인터페이스를 호출하여 로직의 일관성을 가져갈 수 있음
+
+> MemberFormControllerV1 - 회원 등록 컨트롤러
+```java
+public class MemberFormControllerV1 implements ControllerV1 {
+ @Override
+ public void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+ String viewPath = "/WEB-INF/views/new-form.jsp";
+ RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+ dispatcher.forward(request, response);
+ }
+}
+```
++ `ControllerV1` 인터페이스를 상속받음 
+
+> FrontControllerServletV1 - 프론트 컨트롤러
+```java
+@WebServlet(name = "frontControllerServletV1", urlPatterns = "/front-controller/v1/*")
+public class FrontControllerServletV1 extends HttpServlet {
+
+    private Map<String, ControllerV1> controllerMap = new HashMap<>();
+
+    public FrontControllerServletV1() {
+    
+        // 앞의 URI 호출 -> 뒤의 객체 인스턴스 반환
+        controllerMap.put("/front-controller/v1/members/new-form", new MemberFormControllerV1());
+        controllerMap.put("/front-controller/v1/members/save", new MemberSaveControllerV1());
+        controllerMap.put("/front-controller/v1/members/members", new MemberListControllerV1());
+    }
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        System.out.println("FrontControllerServletV1.service");
+
+        //front-controller/v1/members
+        String requestURI = request.getRequestURI();
+        
+        /* 다형성: controller(부모) , 인스턴스 주소(자식) 부모가 자식에 담길 수 있음 */
+        // requestURI를 꺼내면 controller가 찾아짐
+        // ex) ControllerV1 controller = MemberListControllerV1()의 인스턴스 주소
+        ControllerV1 controller = controllerMap.get(requestURI); 
+
+        // 없는 경우
+        if (controller == null) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        // 잘 조회된 경우
+        controller.process(request, response);
+    }
+}
+```
++ `urlPatterns = "/front-controller/v1/*"` : /front-controller/v1 를 포함한 하위 모든 요청은
+이 서블릿에서 받아들임
++ `controllerMap`
+  + `key`: 매핑 URL
+  + `value`: 호출될 컨트롤러
++ `service()`: requestURI 를 조회해서 실제 호출할 컨트롤러를 controllerMap 에서 찾고  
+   + 없다면, `404(SC_NOT_FOUND)` 상태 코드를 반환
+   + 있다면, `controller.process(request, response)` 을 호출해서 해당 컨트롤러를 실행   
+
+### 2. View 분리 - v2
