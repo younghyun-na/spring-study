@@ -575,15 +575,15 @@ public class MvcMemberSaveServlet extends HttpServlet {
   + forward 중복, ViewPath 중복 
 + 해결방법: `프론트 컨트롤러 패턴`(컨트롤러 호출 전에 먼저 공통 기능을 처리)   
 
-## 📍 MVC 프레임워크 만들기
-### FrontController 
+# MVC 프레임워크 만들기
+## 📍 FrontController란
 <img src = "https://user-images.githubusercontent.com/69106295/129441286-f2e9ae85-04a5-4014-be12-b7c6e03e9372.png" width=50% height=50%>
 
 + 프론트 컨트롤러 서블릿 하나로 클라이언트의 요청을 받음
 + 프론트 컨트롤러가 요청에 맞는 컨트롤러를 찾아서 호출   
 + 프론트를 제외한 나머지 컨트롤러는 서블릿을 사용하지 않아도 됨
 
-### 1. 프론트 컨트롤러 도입 - v1
+## 📍 프론트 컨트롤러 도입 - v1
 + 기존 코드를 최대한 유지하면서, 프론트 컨트롤러를 도입   
 
 <img src = "https://user-images.githubusercontent.com/69106295/130256562-d3aa23a6-0077-4d88-b14d-f73a01978219.png" width=50% height=50%>   
@@ -657,8 +657,8 @@ public class FrontControllerServletV1 extends HttpServlet {
    + 없다면, `404(SC_NOT_FOUND)` 상태 코드를 반환
    + 있다면, `controller.process(request, response)` 을 호출해서 해당 컨트롤러를 실행   
 
-### 2. View 분리 - v2   
-+ 뷰를 처리하는 객체 생성 (why? 모든 컨트롤러에서 뷰로 이동하는 부분에 중복 존재, 이를 분리하기 위함)
+## 📍 View 분리 - v2   
++ 뷰를 처리하는 객체인 `MyView` 생성 (why? 모든 컨트롤러에서 뷰로 이동하는 부분에 중복 존재, 이를 분리하기 위함)
 
 <img src = "https://user-images.githubusercontent.com/69106295/130276060-01b81f17-496d-4d1c-a91f-f434727756d7.png" width=50% height=50%>   
 
@@ -733,4 +733,16 @@ public class FrontControllerServletV2 extends HttpServlet {
 }
 ```
 + 프론트 컨트롤러의 도입 => `MyView` 객체의 `render()`를 호출하는 부분을 모두 일관되게 처리 가능해짐
-+ 각각의 컨트롤러의 역할: `MyView` 객체를 생성만 해서 반환하는 것
++ 각각의 컨트롤러의 역할: `MyView` 객체를 생성만 해서 반환하는 것   
+
+## 📍 Model 추가 - v3   
+
++ 뷰 이름 중복 제거
+  + 컨트롤러가 뷰의 논리 이름을 반환하고, 실제 물리 위치의 이름은 프론트 컨트롤러에서 처리하도록 단순화   
+  + `/WEB-INF/views/new-form.jsp` → new-form
++ `ModelView`: 서블릿의 종속성 제거 + View 이름 전달 하는 객체
+  + 그동안 컨트롤러에서 서블릿에 종속적인 `HttpServletRequest` 사용
+  + 그동안 Model은 `request.setAttribute()`을 통해 데이터를 뷰에 전달
+ 
+<img src = "https://user-images.githubusercontent.com/69106295/130311317-4caabfe3-4e08-43a9-ab5d-0774d68dc4ac.png" width=50% height=50%> 
+
