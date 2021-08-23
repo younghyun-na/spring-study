@@ -739,10 +739,184 @@ public class FrontControllerServletV2 extends HttpServlet {
 
 + 뷰 이름 중복 제거
   + 컨트롤러가 뷰의 논리 이름을 반환하고, 실제 물리 위치의 이름은 프론트 컨트롤러에서 처리하도록 단순화   
-  + `/WEB-INF/views/new-form.jsp` → new-form
+    + `/WEB-INF/views/new-form.jsp` → new-form
 + `ModelView`: 서블릿의 종속성 제거 + View 이름 전달 하는 객체
   + 그동안 컨트롤러에서 서블릿에 종속적인 `HttpServletRequest` 사용
   + 그동안 Model은 `request.setAttribute()`을 통해 데이터를 뷰에 전달
  
-<img src = "https://user-images.githubusercontent.com/69106295/130311317-4caabfe3-4e08-43a9-ab5d-0774d68dc4ac.png" width=50% height=50%> 
+<img src = "https://user-images.githubusercontent.com/69106295/130311317-4caabfe3-4e08-43a9-ab5d-0774d68dc4ac.png" width=50% height=50%>   
 
+> ModelView: Model을 직접 만들고, 추가로 View 이름까지 전달하는 객체
+
+```java
+public class ModelView {
+
+    private String viewName;     // 뷰의 이름
+    private Map<String, Object> model =  new HashMap<>();    // 뷰를 렌더링할 때 필요한 model 객체
+
+    public ModelView(String viewName) {
+        this.viewName = viewName;
+    }
+
+    public String getViewName() {
+        return viewName;
+    }
+
+    public void setViewName(String viewName) {
+        this.viewName = viewName;
+    }
+
+    public Map<String, Object> getModel() {
+        return model;
+    }
+
+    public void setModel(Map<String, Object> model) {
+        this.model = model;
+    }
+}
+```
++ `model`: map으로 되어있으므로 컨트롤러에서 뷰에 필요한 데이터를 (key, value)로 넣어주면 됨
+
+> ControllerV3 (인터페이스)
+```java
+public interface ControllerV3 {
+
+    // 프레임 워크에 종속적인 것이지, 서블릿에 종속적이지 않음
+    ModelView process(Map<String, String> paramMap);
+}
+```
++ 서블릿 기술을 전혀 사용하지 않음 => 구현 단순, 테스트하기 쉬움
++ `HttpServletRequest`가 제공하는 파라미터는 프론트 컨트롤러가 paramMap에 담아서 호출
++ 응답 결과로 ModelView 객체를 반환 (뷰 이름과 뷰에 전달할 Model 데이터를 포함)   
+
+> MemberFormControllerV3 - 회원 등록 폼
+```java
+public class MemberFormControllerV3 implements ControllerV3 {
+
+    @Override
+    public ModelView process(Map<String, String> paramMap) {
+        return new ModelView("new-form");
+    }
+}
+```
++ `ModelView` 생성 시, 뷰의 논리적 이름 `new-form`을 지정함 (물리적 이름은 프론트 컨트롤러가 처리)   
+
+> MemberSaveControllerV3 - 회원 저장
+```java
+public class MemberSaveControllerV3 implements ControllerV3 {
+
+    private MemberRepository memberRepository = MemberRepository.getInstance();
+
+    @Override
+    public ModelView process(Map<String, String> paramMap) {
+    
+        /* (V2:) String username = request.getParameter("username"); */
+        String username = paramMap.get("username");  // 파라미터 정보가 왔겠다고 생각하고 꺼내서 쓰면 됨
+        int age = Integer.parseInt(paramMap.get("age"));
+
+        Member member = new Member(username, age);
+        memberRepository.save(member);
+
+        /* (V2:) request.setAttribute("member", member); */
+        ModelView mv = new ModelView("save-result");    // 뷰의 논리적 이름 "save-result"
+        mv.getModel().put("member", member);   // 모델에 뷰에서 필요한 member 객체를 담고 반환함
+        
+        /* (V2:) return new MyView("/WEB-INF/views/save-result.jsp"); */
+        return mv;
+    }
+}
+```
++ `paramMap`: 파라미터 정보는 map에 담겨있음. map에서 필요한 요청 파라미터를 조회하면 됨.   
+
+> FrontControllerServletV3 - 프론트 컨트롤러   
+```java
+// ex) /front-controller/v2/members/new-form
+@WebServlet(name = "frontControllerServletV3", urlPatterns = "/front-controller/v3/*")
+public class FrontControllerServletV3 extends HttpServlet {
+
+    private Map<String, ControllerV3> controllerMap = new HashMap<>();
+
+    public FrontControllerServletV3() {
+        controllerMap.put("/front-controller/v3/members/new-form", new MemberFormControllerV3());
+        controllerMap.put("/front-controller/v3/members/save", new MemberSaveControllerV3());
+        controllerMap.put("/front-controller/v3/members/members", new MemberListControllerV3());
+    }
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        String requestURI = request.getRequestURI();
+
+        // 맵핑 정보 가져오기
+        ControllerV3 controller = controllerMap.get(requestURI);
+
+        if (controller == null) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        /* FrontControllerServletV2에서,
+        MyView view = controller.process(request, response);
+        view.render(request, response);
+        */
+        //paramMap(파라미터 정보) 넘겨주기
+        Map<String, String> paramMap = createParamMap(request);
+        ModelView mv = controller.process(paramMap);
+
+        String viewName = mv.getViewName();  // 논리이름 가져옴: new-form
+        MyView view = viewResolver(viewName);  // new-form을 가지고 viewResolver를 호출 → MyView 반환
+        view.render(mv.getModel(), request, response);  // 이걸 가지고 render 호출
+    }
+
+    //모든 파라미터 정보 가져와서 Map에 담는 함수
+    private Map<String, String> createParamMap(HttpServletRequest request) {
+        Map<String, String> paramMap = new HashMap<>();
+        request.getParameterNames().asIterator()
+                .forEachRemaining(paramName -> paramMap.put(paramName, request.getParameter(paramName)));
+        return paramMap;
+    }
+
+    // 컨트롤러가 반환한 논리 뷰 이름을 실제 물리 뷰 경로로 변경: /WEB-INF/views/new-form.jsp
+    private MyView viewResolver(String viewName){
+        return new MyView("/WEB-INF/views/" + viewName + ".jsp");
+    }
+}
+```
++ `createParamMap()`: HttpServletRequest에서 파라미터 정보를 꺼내서 Map으로 변환 후 해당 Map(`paramMap`)을
+컨트롤러에 전달하면서 호출
+
+#### 뷰 리졸버
++ `MyView view = viewResolver(viewName)` 
+  + 컨트롤러가 반환한 논리 뷰 이름을 실제 물리 뷰 경로로 변경
+  + 실제 물리 경로가 있는 MyView 객체를 반환
++ `view.render(mv.getModel(), request, response)`
+  + 뷰 객체를 통해서 HTML 화면을 렌더링
+  + 뷰 객체의 `render()`는 모델 정보도 함께 받음
+  + JSP는 `request.getAttribute()`로 데이터를 조회하므로, 모델의 데이터를 꺼내서 `request.setAttribute()`로 담아둠   
+  
+> MyView - 뷰 리졸버   
+```java
+public class MyView {
+
+    private String viewPath;
+
+    public MyView(String viewPath) {
+        this.viewPath = viewPath;
+    }
+
+    public void render(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+        dispatcher.forward(request, response);
+    }
+
+    public void render(Map<String, Object> model, HttpServletRequest request,  HttpServletResponse response) throws ServletException, IOException {
+        modelToRequestAttribute(model, request);
+        RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+        dispatcher.forward(request, response);
+    }
+
+    private void modelToRequestAttribute(Map<String, Object> model, HttpServletRequest request) {
+        model.forEach((key, value) -> request.setAttribute(key, value));
+    }
+}
+```
