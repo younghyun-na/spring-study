@@ -920,3 +920,10 @@ public class MyView {
     }
 }
 ```
+
+## 📍 단순하고 실용적인 컨트롤러 - v4   
+<img src = "https://user-images.githubusercontent.com/69106295/130589656-a76f73ad-b580-40ed-8273-5713af884407.png" width=50% height=50%>   
+
++ 컨트롤러가 `ModelView`를 반환하지 않고, `ViewName`만 반환   
++ frontcontroller가 Model을 만들어서 넘겨줌 
++ frontcontroller에서 controller 호출할 때 model 넘겨주는 것, view 반환하는 것의 차이   
