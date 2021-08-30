@@ -885,7 +885,7 @@ public class FrontControllerServletV3 extends HttpServlet {
 + `createParamMap()`: HttpServletRequest에서 파라미터 정보를 꺼내서 Map으로 변환 후 해당 Map(`paramMap`)을
 컨트롤러에 전달하면서 호출
 
-#### 뷰 리졸버
+✔️ 뷰 리졸버
 + `MyView view = viewResolver(viewName)` 
   + 컨트롤러가 반환한 논리 뷰 이름을 실제 물리 뷰 경로로 변경
   + 실제 물리 경로가 있는 MyView 객체를 반환
@@ -927,3 +927,67 @@ public class MyView {
 + 컨트롤러가 `ModelView`를 반환하지 않고, `ViewName`만 반환   
 + frontcontroller가 Model을 만들어서 넘겨줌 
 + frontcontroller에서 controller 호출할 때 model 넘겨주는 것, view 반환하는 것의 차이   
+
+> ControllerV4 (인터페이스)
+```java
+public interface ControllerV4 {
+    /**
+     *
+     * @param paramMap
+     * @param model
+     * @return viewName
+     */
+    String process(Map<String, String> paramMap, Map<String, Object> model);
+}
+``` 
++ model 객체는 파라미터로 전달되기 때문에 그냥 사용하면 되고, 결과로 뷰의 이름만 반환해주면 된다.   
+
+> FrontControllerServletV4 - 프론트 컨트롤러
+```java
+@WebServlet(name = "frontControllerServletV4", urlPatterns = "/front-controller/v4/*")
+public class FrontControllerServletV4 extends HttpServlet {
+    private Map<String, ControllerV4> controllerMap = new HashMap<>();
+    ...
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        ...        
+        // 모델 객체를 프론트 컨트롤러에서 생성해서 전달
+        Map<String, String> paramMap = createParamMap(request);
+        Map<String, Object> model = new HashMap<>();    // 추가 
+
+        // 컨트롤러가 뷰의 논리 이름을 직접 반환하므로 이 값을 이용해서 실제 물리 뷰 찾기 
+        String viewName = controller.process(paramMap, model);  
+        MyView view = viewResolver(viewName);
+
+        view.render(model, request, response);  // 프론트 컨트롤러가 직접 모델을 제공함 (모델뷰에서 모델 꺼낼 필요 없음)
+    }
+    ...
+}
+```
+
+> MemberSaveControllerV4 - 회원 저장
+```java
+public class MemberSaveControllerV4 implements ControllerV4 {
+
+    private MemberRepository memberRepository = MemberRepository.getInstance();
+
+    @Override
+    public String process(Map<String, String> paramMap, Map<String, Object> model) {
+
+        String username = paramMap.get("username");  // 파라미터 정보가 왔겠다고 생각하고 꺼내서 쓰면 됨
+        int age = Integer.parseInt(paramMap.get("age"));
+
+        Member member = new Member(username, age);
+        memberRepository.save(member);
+
+        /* (V3:)  
+        ModelView mv = new ModelView("save-result");    
+        mv.getModel().put("member", member); 
+        return mv;
+        */
+        model.put("member", member);   // 모델이 파라미터로 전달되기 때문에, 모델을 직접 생성하지 않아도 됨
+        return "save-result";      // 뷰의 논리 이름만 있으면 됨 (model view 필요 없음)           
+    }
+}
+```   
+## 📍 유연한 컨트롤러 - v5   
