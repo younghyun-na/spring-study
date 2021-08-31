@@ -991,3 +991,213 @@ public class MemberSaveControllerV4 implements ControllerV4 {
 }
 ```   
 ## 📍 유연한 컨트롤러 - v5   
++ 어댑터를 도입해서 프론트 컨트롤러가 다양한 방식의 컨트롤러를 처리할 수 있도록 함
+  + 핸들러 어댑터: 핸들러를 추가해주는 어댑터
+  + 핸들러: 컨트롤러의 넓은 범위   
+
+<img src = "https://user-images.githubusercontent.com/69106295/131458701-c3cf9087-8d74-4357-950c-af92641af5c7.png" width=50% height=50%>   
+
+✔️ 핸들러 어댑터
++ 핸들러 매핑을 통해 찾은 컨트롤러를 직접 실행하는 기능을 수행   
++ 어댑터용 인터페이스를 구현해서 생성   
+
+> MyHandlerAdapter (어댑터용 인터페이스)     
+
+```java
+public interface MyHandlerAdapter {
+
+    boolean supports(Object handler);  // handler = 컨트롤러
+
+    ModelView handle(HttpServletRequest request, HttpServletResponse response, Object handler) throws ServletException, IOException;       // handler 호출해줌, 반환할 때 ModelView에 맞춰서 반환
+}
+```
+
++ `boolean supports(Object handler)`: 어댑터가 해당 컨트롤러를 처리할 수 있는지 판단하는 메서드   
++ `ModelView handle(HttpServletRequest request, HttpServletResponse response, Object handler)`: 프론트 컨트롤러가 아닌 어댑터가 실제 컨트롤러를 호출, 그 결과로 ModelView를 반환   
+
+> ControllerV3HandlerAdapter - V3 핸들러 어댑터
+```java
+public class ControllerV3HandlerAdapter implements MyHandlerAdapter {
+
+    @Override
+    // ControllerV3를 처리할 수 있는 어댑터인가
+    public boolean supports(Object handler) {
+        return (handler instanceof ControllerV3);
+    }
+
+    @Override
+    // handler를 컨트롤러 V3로 변환한 다음에 V3 형식에 맞도록 호출함
+    public ModelView handle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        ControllerV3 controller = (ControllerV3) handler;      // 캐스팅
+
+        Map<String, String> paramMap = createParamMap(request);
+        ModelView mv = controller.process(paramMap);      // 어댑터에서 실제 컨트롤러 호출
+
+        return mv;      // ModelView 반환
+    }
+
+    private Map<String, String> createParamMap(HttpServletRequest request) {
+        Map<String, String> paramMap = new HashMap<>();
+        request.getParameterNames().asIterator()
+                .forEachRemaining(paramName -> paramMap.put(paramName,
+                        request.getParameter(paramName)));
+        return paramMap;
+    }
+}
+```    
+> ControllerV4HandlerAdapter 중 일부 
+```
+@Override
+public class ControllerV4HandlerAdapter implements MyHandlerAdapter{
+    ...
+    public ModelView handle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+    
+        // 실행 로직: handler를 ControllerV4로 케스팅 하고, paramMap, model을 만들어서 해당 컨트롤러를 호출, viewName을 반환
+        ControllerV4 controller = (ControllerV4) handler;
+
+        Map<String, String> paramMap = createParamMap(request);
+        Map<String, Object> model = new HashMap<>();
+
+        String viewName = controller.process(paramMap, model);
+
+        // 어댑터 변환 (**중요!!**)
+        ModelView mv = new ModelView(viewName);
+        mv.setModel(model);
+
+        return mv;
+    }
+    ...
+}
+```
+⭐ ControllerV4가 뷰의 이름을 반환 => 어댑터는 이것을 ModelView로 만들어서 형식을 맞추어 반환해야 함!!
+
+> FrontControllerServletV5 - 프론트 컨트롤러
+```java
+@WebServlet(name = "frontControllerServletV5", urlPatterns = "/front-controller/v5/*")
+public class FrontControllerServletV5 extends HttpServlet {
+
+    /*  (V4:) private Map<String, ControllerV4> controllerMap = new HashMap<>(); */
+    private final Map<String, Object> handlerMappingMap = new HashMap<>();     // 핸들러 매핑 정보 
+    private final List<MyHandlerAdapter> handlerAdapters = new ArrayList<>();   // 핸들러 어댑터 리스트
+
+    public FrontControllerServletV5() {
+        initHandlerMappingMap();  //핸들러 매핑 초기화
+        initHandlerAdapters();    //어댑터 초기화
+    }
+
+    private void initHandlerMappingMap() {
+        handlerMappingMap.put("/front-controller/v5/v3/members/new-form", new MemberFormControllerV3());
+        handlerMappingMap.put("/front-controller/v5/v3/members/save", new MemberSaveControllerV3());
+        handlerMappingMap.put("/front-controller/v5/v3/members", new MemberListControllerV3());
+
+        handlerMappingMap.put("/front-controller/v5/v4/members/new-form", new MemberFormControllerV4());
+        handlerMappingMap.put("/front-controller/v5/v4/members/save", new MemberSaveControllerV4());
+        handlerMappingMap.put("/front-controller/v5/v4/members", new MemberListControllerV4());
+    }
+
+    private void initHandlerAdapters() {
+        handlerAdapters.add(new ControllerV3HandlerAdapter());
+        handlerAdapters.add(new ControllerV4HandlerAdapter());
+    }
+
+    @Override
+    protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        Object handler = getHandler(request);   // 1. 핸들러 매핑: 요청 정보를 가지고 핸들러를 찾아옴
+
+        if (handler == null) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        MyHandlerAdapter adapter = getHandlerAdapter(handler);   // 2. 핸들러를 처리할 수 있는 어댑터 조회
+        ModelView mv = adapter.handle(request, response, handler);   // 3. 핸들러 어댑터: 실제 컨트롤러 호출, ModelView 반환
+
+        MyView view = viewResolver(mv.getViewName());   // 4. ViewResolver 호출, MyView 반환
+        view.render(mv.getModel(), request, response);  // 5. render(model) 호출하면서 model 넘겨주기
+    }
+
+    // 핸들러 매핑
+    private Object getHandler(HttpServletRequest request) {
+        String requestURI = request.getRequestURI();
+        return handlerMappingMap.get(requestURI);
+    }
+
+    // 핸들러를 처리할 수 있는 어댑터 조회
+    private MyHandlerAdapter getHandlerAdapter(Object handler) {
+        for (MyHandlerAdapter adapter : handlerAdapters) {    // 핸들러를 다 뒤져봄
+            if (adapter.supports(handler)) {       // 어댑터가 핸들러를 지원하면(핸들러가 ControllerV3 인터페이스를 구현했다면) 어댑터 반환
+                return adapter;
+            }
+        }
+        throw new IllegalArgumentException("handler adapter를 찾을 수 없습니다. handler=" + handler);  // 예외 처리
+    }
+    private MyView viewResolver(String viewName) {
+        return new MyView("/WEB-INF/views/" + viewName + ".jsp");
+    }
+}
+```
++ **핸들러 매핑** `getHandler(request)`: handlerMappingMap에서 URL에 매핑된 핸들러 객체를 찾아서 반환   
++ **핸들러를 처리할 수 있는 어댑터 조회** `getHandlerAdapter(handler)`
+  + handler 를 처리할 수 있는 어댑터를 `adapter.supports(handler)`를 통해서 찾음
+  + if (handler가 ControllerV3 인터페이스를 구현했다면) => `ControllerV3HandlerAdapter` 객체가 반환
++ **어댑터 호출** `adapter.handle(request, response, handler)`   
+  + 어댑터의 `handle(request, response, handler)` 메서드를 통해 실제 어댑터가 호출
+  + 어댑터는 handler를 호출 => 결과를 어댑터에 맞추어 반환    
+
+# 스프링 MVC 구조 이해  
+## Spring MVC 전체 구조   
+
+### 직접 만든 프레임워크 → 스프링 MVC 비교
++ FrontController → `DispatcherServlet`
++ handlerMappingMap → `HandlerMapping`
++ MyHandlerAdapter → `HandlerAdapter`
++ ModelView → `ModelAndView`
++ viewResolver → `ViewResolver`
++ MyView → `View`
+
+### DispatcherServlet 구조   
++ 부모 클래스에서 HttpServlet을 상속 받아서 사용하고, 서블릿으로 동작
+  + DispatcherServlet → FrameworkServlet → HttpServletBean → HttpServlet
++ 스프링 부트는 `DispacherServlet`을 서블릿으로 자동으로 등록하면서 모든 경로( urlPatterns="/" )에 대해서 매핑    
++ `FrameworkServlet.service()` 를 시작으로 여러 메서드가 호출되면서 `DispacherServlet.doDispatch()` 가 호출된다
+> doDispatch()   
+```java
+protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
+  HttpServletRequest processedRequest = request;
+  HandlerExecutionChain mappedHandler = null;
+  ModelAndView mv = null;
+  
+  // 1. 핸들러 조회
+  mappedHandler = getHandler(processedRequest);
+  if (mappedHandler == null) {
+    noHandlerFound(processedRequest, response);
+    return;
+  }
+  
+  // 2. 핸들러 어댑터 조회 - 핸들러를 처리할 수 있는 어댑터
+  HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
+  
+  // 3. 핸들러 어댑터 실행 -> 4. 핸들러 어댑터를 통해 핸들러 실행 -> 5. ModelAndView 반환
+  mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
+  processDispatchResult(processedRequest, response, mappedHandler, mv,
+  dispatchException);
+}
+
+private void processDispatchResult(HttpServletRequest request, HttpServletResponse response, HandlerExecutionChain mappedHandler, ModelAndView mv, Exception exception) throws Exception {
+
+  // 뷰 렌더링 호출
+  render(mv, request, response);
+}
+
+protected void render(ModelAndView mv, HttpServletRequest request, HttpServletResponse response) throws Exception {
+  View view;
+  String viewName = mv.getViewName();
+  
+  // 6. 뷰 리졸버를 통해서 뷰 찾기, 7. View 반환
+  view = resolveViewName(viewName, mv.getModelInternal(), locale, request);
+  
+  // 8. 뷰 렌더링
+  view.render(mv.getModelInternal(), request, response);
+}
+```
