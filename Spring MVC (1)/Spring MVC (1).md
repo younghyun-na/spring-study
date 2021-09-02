@@ -1201,7 +1201,7 @@ protected void render(ModelAndView mv, HttpServletRequest request, HttpServletRe
   // 8. 뷰 렌더링
   view.render(mv.getModelInternal(), request, response);
 ```   
-### SpringMVC 구조
+### 📍 SpringMVC 구조
 <img src = "https://user-images.githubusercontent.com/69106295/131795309-01e9cff1-3edf-4764-a0ed-b552d1e775d6.png" width=50% height=50%>   
 
 #### 동작 순서 
@@ -1224,4 +1224,76 @@ protected void render(ModelAndView mv, HttpServletRequest request, HttpServletRe
 + 뷰 리졸버: `org.springframework.web.servlet.ViewResolver`
 + 뷰: `org.springframework.web.servlet.View`   
 
+## 📍 핸들러 매핑과 핸들러 어댑터 
 
+✔ 컨트롤러 호출에 필요한 2가지
++ HandlerMapping(핸들러 매핑)
+  + 핸들러 매핑에서 이 컨트롤러를 찾을 수 있어야 한다.
+  + 예) 스프링 빈의 이름으로 핸들러를 찾을 수 있는 핸들러 매핑이 필요하다.
++ HandlerAdapter(핸들러 어댑터)
+  + 핸들러 매핑을 통해서 찾은 핸들러를 실행할 수 있는 핸들러 어댑터가 필요하다.
+  + 예) `Controller` 인터페이스를 실행할 수 있는 핸들러 어댑터를 찾고 실행해야 한다.   
+
+### 핸들러 매핑   
+> 스프링 부트가 자동 등록하는 핸들러 매핑
++ 0 = `RequestMappingHandlerMapping` : 애노테이션 기반의 컨트롤러인 @RequestMapping에서 사용   
++ 1 = `BeanNameUrlHandlerMapping` : 스프링 빈의 이름으로 핸들러를 찾는다.   
+
+### 핸들러 어댑터   
+> 스프링 부트가 자동 등록하는 핸들러 어댑터
++ 0 = `RequestMappingHandlerAdapter` : 애노테이션 기반의 컨트롤러인 @RequestMapping에서
+사용
++ 1 = `HttpRequestHandlerAdapter` : HttpRequestHandler 처리
++ 2 = `SimpleControllerHandlerAdapter` : Controller 인터페이스(애노테이션X, 과거에 사용) 처리   
+
+> OldController   
+```java
+@Component("/springmvc/old-controller")
+public class OldController implements Controller {
+
+    @Override
+    public ModelAndView handleRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
+        System.out.println("OldController.handleRequest");
+        return null;
+    }
+}
+```
+> 동작 방식
+1. 핸들러 매핑으로 핸들러 조회
+  + `HandlerMapping` 을 순서대로 실행해서, 핸들러를 찾는다.
+  + 이 경우 빈 이름으로 핸들러를 찾아야 하므로 이름 그대로 빈 이름으로 핸들러를 찾아주는 `BeanNameUrlHandlerMapping` 가 실행에 성공하고 핸들러인 `OldController` 를 반환한다.   
+  
+2. 핸들러 어댑터 조회
+  + `HandlerAdapter` 의 supports() 를 순서대로 호출한다.
+  + `SimpleControllerHandlerAdapter` 가 Controller 인터페이스를 지원하므로 대상이 된다.   
+  
+3. 핸들러 어댑터 실행
+  + 디스패처 서블릿이 조회한 `SimpleControllerHandlerAdapter` 를 실행하면서 핸들러 정보도 함께 넘겨준다.
+  + `SimpleControllerHandlerAdapter` 는 핸들러인 `OldController` 를 내부에서 실행하고, 그 결과를 반환한다.
+
+정리 - OldController 핸들러매핑, 어댑터
+OldController 를 실행하면서 사용된 객체
+  + HandlerMapping = BeanNameUrlHandlerMapping
+  + HandlerAdapter = SimpleControllerHandlerAdapter   
+
+### 뷰 리졸버    
+> 스프링 부트가 자동 등록하는 뷰 리졸버
++ 1 = `BeanNameViewResolver` : 빈 이름으로 뷰를 찾아서 반환한다. (예: 엑셀 파일 생성 기능에 사용)
++ 2 = `InternalResourceViewResolver` : JSP를 처리할 수 있는 뷰를 반환한다.
+
+> 동작 방식
+1. 핸들러 어댑터 호출
+  + 핸들러 어댑터를 통해 new-form 이라는 논리 뷰 이름을 획득한다.
+2. ViewResolver 호출
+  + `new-form` 이라는 뷰 이름으로 `viewResolver`를 순서대로 호출한다.
+  + `BeanNameViewResolver` 는 `new-form` 이라는 이름의 스프링 빈으로 등록된 뷰를 찾아야 하는데 없다.
+  + `InternalResourceViewResolver` 가 호출된다.
+3. InternalResourceViewResolver
+  + 이 뷰 리졸버는 `InternalResourceView` 를 반환한다.
+4. 뷰 - InternalResourceView
+  + `InternalResourceView` 는 JSP처럼 포워드 forward() 를 호출해서 처리할 수 있는 경우에 사용한다.
+5. view.render()
+  + `view.render()` 가 호출되고 `InternalResourceView` 는 forward() 를 사용해서 JSP를 실행한다.
+
+## 📍 스프링 MVC 시작   
+### RequestMapping 
