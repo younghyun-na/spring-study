@@ -185,10 +185,10 @@ public class SpringMemberSaveControllerV1 {
    
 ## 📍 스프링 MVC - 실용적인 방식   
 #### 컨트롤러 통합  
-+ 클래스 레벨 `@RequestMapping("/springmvc/v2/members")`
-  + 메서드 레벨 `@RequestMapping("/new-form")` => `/springmvc/v2/members/new-form`
-  + 메서드 레벨 `@RequestMapping("/save")` =>  `/springmvc/v2/members/save`
-  + 메서드 레벨 `@RequestMapping` =>  `/springmvc/v2/members` 
++ 클래스 레벨 `@RequestMapping("/springmvc/v2/members")`: 공통적인 url 경로를 상위 클래스 레벨로 가져옴
+  + 메소드 레벨 `@RequestMapping("/new-form")` => `/springmvc/v2/members/new-form`
+  + 메소드 레벨 `@RequestMapping("/save")` =>  `/springmvc/v2/members/save`
+  + 메소드 레벨 `@RequestMapping` =>  `/springmvc/v2/members` 
 
 > SpringMemberControllerV3 (컨트롤러 통합된 버전)
 ```java
