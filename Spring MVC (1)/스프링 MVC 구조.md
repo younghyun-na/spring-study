@@ -182,6 +182,54 @@ public class SpringMemberSaveControllerV1 {
 + `@RequestMapping`: 요청 정보를 매핑, 해당 URL이 호출되면 이 메서드가 호출   
 + `ModelAndView` : 모델과 뷰 정보를 담아서 반환   
 + `RequestMappingHandlerMapping` 은 스프링 빈 중에서 `@RequestMapping` 또는 `@Controller`가 클래스 레벨에 붙어 있는 경우에 매핑 정보로 인식함   
+   
+## 📍 스프링 MVC - 실용적인 방식   
+#### 컨트롤러 통합  
++ 클래스 레벨 `@RequestMapping("/springmvc/v2/members")`
+  + 메서드 레벨 `@RequestMapping("/new-form")` => `/springmvc/v2/members/new-form`
+  + 메서드 레벨 `@RequestMapping("/save")` =>  `/springmvc/v2/members/save`
+  + 메서드 레벨 `@RequestMapping` =>  `/springmvc/v2/members` 
 
+> SpringMemberControllerV3 (컨트롤러 통합된 버전)
+```java
+@Controller
+@RequestMapping("/springmvc/v3/members")
+public class SpringMemberControllerV3 {
 
-## 📍 스프링 MVC - 컨트롤러 통합   
+    private MemberRepository memberRepository = MemberRepository.getInstance();
+
+    @GetMapping("/new-form")
+    //@RequestMapping(value = "/new-form", method = RequestMethod.GET)
+    public String newForm() {
+        return "new-form";     // 뷰 이름 직접 반환 
+    }
+
+    @PostMapping("/save")
+    //@RequestMapping(value = "/save", method = RequestMethod.POST)
+    public String save(
+            @RequestParam("username") String username,   // 파라미터를 직접 받음
+            @RequestParam("age") int age,
+            Model model) {      // 파라미터로 넘어온 model
+        Member member = new Member(username, age);
+        memberRepository.save(member);
+
+        model.addAttribute("member", member);
+        return "save-result";
+    }
+
+    @GetMapping
+    //@RequestMapping(method = RequestMethod.GET)
+    public String members(Model model) {
+        List<Member> members = memberRepository.findAll();
+        model.addAttribute("members", members);
+        return "members";
+    }
+}
+```   
++ **Model 파라미터**:  모델을 생성하지 않고 파라미터로 받음
++ **ViewName 직접 반환**: 뷰의 논리 이름을 반환
++ **`@RequestParam` 사용**: 스프링은 HTTP 요청 파라미터를 @RequestParam 으로 받음
+  + `@RequestParam("username")` = `request.getParameter("username")`
++ **`@RequestMapping` => `@GetMapping`, `@PostMapping`**: URL만 매칭하는 것이 아니라, HTTP Method도 구분 가능   
+   + `@RequestMapping(value = "/new-form", method = RequestMethod.GET)` => `@GetMapping("/new-form")`
+   + `@RequestMapping(value = "/save", method = RequestMethod.POST)` => `@PostMapping("/save")`
