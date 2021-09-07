@@ -180,3 +180,111 @@ public class RequestHeaderController {
     }
 }
 ```
+### HTTP 요청 파라미터 - 쿼리 파라미터, HTML Form   
+✔ 클라이언트에서 서버로 요청 데이터를 전달할 때 3가지 방법   
+1. GET - 쿼리 파라미터
++ `/url?username=hello&age=20`
++ 메시지 바디 없이, URL의 쿼리 파라미터에 데이터를 포함해서 전달
++ ex) 검색, 필터, 페이징등에서 많이 사용하는 방식   
+
+2. POST - HTML Form   
++ content-type: `application/x-www-form-urlencoded`   
++ 메시지 바디에 쿼리 파리미터 형식으로 전달 `username=hello&age=20`
++ ex) 회원 가입, 상품 주문, HTML Form 사용   
+
+3. HTTP message body에 데이터를 직접 담아서 요청   
++ HTTP API에서 주로 사용, JSON, XML, TEXT (데이터 형식은 주로 JSON)
++ POST, PUT, PATCH   
+
+=> GET 쿼리 파리미터 전송 & POST HTML Form 전송 둘다 **요청 파라미터(request parameter) 조회** 라고 한다.   
+
+> requestParamController - requestParamV1
+```java
+@Slf4j
+@Controller
+public class RequestParamController {
+    @RequestMapping("/request-param-v1")
+    public void requestParamV1(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String username = request.getParameter("username");
+        int age = Integer.parseInt(request.getParameter("age"));
+        log.info("username = {}, age={}", username, age);
+
+        response.getWriter().write("ok");
+
+    }
+}
+```
+### HTTP 요청 파라미터 - `@RequestParam`
++ `@RequestParam`으로 요청 파라미터를 매우 편리하게 사용 가능   
+
+> requestParamController - requestParamV2
+```java
+@Slf4j
+@Controller
+public class RequestParamController {
+    @ResponseBody     // "ok"를 문자 그대로 HTTP 응답 메시지에 넣어서 반환함 (=@Restcontroller)
+    @RequestMapping("/request-param-v2")
+    public String requestParamV2(
+            @RequestParam("username") String memberName,
+            @RequestParam("age") int memberAge) {
+        log.info("username={}, age={}", memberName, memberAge);
+        return "ok";
+    }
+}
+```
++ `@RequestParam` : 파라미터 이름으로 바인딩
+  + `@RequestParam("username") String memberName` = `request.getParameter("username")`
+  + 축약: HTTP 파라미터 이름이 변수 이름과 같으면 생략 가능   
+     + ```java
+       public String requestParamV3(
+           @RequestParam String username,   // 변수명이 같아야 함
+           @RequestParam int age)
+       ```
+  + 생략: String , int , Integer 등의 단순 타입이면 @RequestParam 생략 가능   
+     + ```java
+       public String requestParamV4(String username, int age)
+       ```
+ 
++ `@ResponseBody` : View 조회를 무시하고, HTTP message body에 직접 해당 내용 입력
+  + `@Restcontroller`와 비슷한 기능   
+
+> 파라미터 필수 여부 - requestParamRequired   
+```java
+    @ResponseBody
+    @RequestMapping("/request-param-required")
+    public String requestParamRequired(
+            @RequestParam(required = true) String username,
+            @RequestParam(required = false) Integer age) {
+        // Integer = null은 가능하지만 int = null은 불가능하므로 Integer로 설정
+
+        log.info("username={}, age={}", username, age);
+        return "ok";
+    }
+```
++ `@RequestParam.required`: 파라미터 필수 여부 (기본값이 파라미터 필수(true))   
+  + `/request-param` -> username이 없으므로 예외
++ **주의! - 파라미터 이름만 사용**
+  + `/request-param?username=` -> 파라미터 이름만 있고 값이 없어서 빈문자로 통과하여 에러 안남   
++ **주의! - 기본형(primitive)에 null 입력**
+  + `@RequestParam(required = false) int age`   
+    => null을 받을 수 있는 **Integer** 로 변경 or **defaultValue** 사용   
+    + ✔ defaultValue 사용
+      ```java
+      public String requestParamDefault(
+          @RequestParam(required = true, defaultValue = "guest") String username,
+          @RequestParam(required = false, defaultValue = "-1") int age)   // null인 경우 -1이 적용되므로 int 사용 가능
+      ```
+> 파라미터를 Map으로 조회 - requestParamMap
+```java
+@ResponseBody
+@RequestMapping("/request-param-map")
+public String requestParamMap(@RequestParam Map<String, Object> paramMap) {
+    log.info("username={}, age={}", paramMap.get("username"),
+    paramMap.get("age"));
+    return "ok";
+}
+```
++ `@RequestParam Map`: Map(key=value)
++ `@RequestParam MultiValueMap`: MultiValueMap(key=[value1, value2, ...]   
+
+### HTTP 요청 파라미터 - `@ModelAttribute`
