@@ -288,3 +288,28 @@ public String requestParamMap(@RequestParam Map<String, Object> paramMap) {
 + `@RequestParam MultiValueMap`: MultiValueMap(key=[value1, value2, ...]   
 
 ### HTTP 요청 파라미터 - `@ModelAttribute`
++ `@ModelAttribute`: 요청 파라미터를 받아서 필요한 객체를 만들고 그 객체에 값을 넣는 과정을 자동화해줌   
+
+> HelloData - 요청 파라미터를 바인딩 받을 객체 
+```java
+@Data
+public class HelloData {
+    private String username;
+    private int age;
+
+}
+```
++ 롬복 `@Data`: `@Getter` , `@Setter` , `@ToString` , `@EqualsAndHashCode` , `@RequiredArgsConstructor`를 자동으로 적용   
+
+> ModelAttributeV1
+```java
+@ResponseBody
+@RequestMapping("/model-attribute-v1")
+public String modelAttributeV1(@ModelAttribute HelloData helloData) {  //  @ModelAttribute 생략 가능
+    log.info("username={}, age={}", helloData.getUsername(), helloData.getAge());
+    return "ok";
+}
+```
++ `@ModelAttribute`: HelloData의 객체 생성, 요청 파라미터의 값 넣어줌
+  + 요청 파라미터의 이름으로 HelloData 객체의 프로퍼티를 찾은 후 해당 프로퍼티의 setter를 호출해서 파라미터의 값을 입력(바인딩) 한다. 
+  + ex) 파라미터 이름이 username 이면 `setUsername()` 메서드를 찾아서 호출하면서 값을 입력  
