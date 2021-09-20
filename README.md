@@ -20,6 +20,7 @@
 |`Ctrl + Alt + v`|변수 추출|
 |`Ctrl + p`|	커서가 위치한 메서드의 매개변수 조회|
 |`Ctrl + b`| 해당 코드의 선언부로 이동|
+|'Ctrl + Alt + h`| 해당 함수가 사용된 부분으로 이동|
 |`Ctrl + Alt + b`| 해당 코드의 구현부로 이동|
 |`Ctrl + Shift + t`|test 생성|
 |`psvm`|public static void main(String[] args)|  
