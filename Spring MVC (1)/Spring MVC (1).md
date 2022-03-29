@@ -1294,6 +1294,3 @@ OldController 를 실행하면서 사용된 객체
   + `InternalResourceView` 는 JSP처럼 포워드 forward() 를 호출해서 처리할 수 있는 경우에 사용한다.
 5. view.render()
   + `view.render()` 가 호출되고 `InternalResourceView` 는 forward() 를 사용해서 JSP를 실행한다.
-
-## 📍 스프링 MVC 시작   
-### RequestMapping 
