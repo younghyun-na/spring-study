@@ -881,7 +881,7 @@ public class OrderServiceImpl implements OrderService {
 #### 4. 일반 메서드 주입  
 + 한 번에 여러 필드를 주입 받을 수 있음
 + 잘 사용하지 않음
-+ 
+
 ```java
 @Component
 public class OrderServiceImpl implements OrderService {
